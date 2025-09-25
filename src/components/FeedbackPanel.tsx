@@ -1,4 +1,5 @@
 import { HelpCircle, CheckCircle, AlertTriangle, Info, Sparkles } from 'lucide-react';
+import Image from 'next/image';
 import { useState } from 'react';
 
 interface Exercise {
@@ -14,10 +15,13 @@ interface FeedbackPanelProps {
     isStarted: boolean;
     repCount: number;
     holdTime: number;
-    timeElapsed: number; // Added timeElapsed
+    timeElapsed: number;
     feedback: string;
     feedbackType: 'info' | 'good' | 'warning';
     personDetected: boolean;
+    poseConfidence: number;
+    formScore: number;
+    lowConfidenceNotice: boolean;
   };
   currentExercise: Exercise | undefined;
   nextExercise: Exercise | undefined;
@@ -119,13 +123,18 @@ const FeedbackPanel = ({ workoutState, currentExercise, nextExercise }: Feedback
         {workoutState.isStarted && !workoutState.personDetected ? (
           <div className="exercise-image-content w-full h-full">
             <p className="text-xs text-muted-foreground mb-2">
-              Can't see you! Here's a tip:
+              Can&apos;t see you! Here&apos;s a tip:
             </p>
-            <img
-              className="exercise-image w-full h-full object-cover rounded-lg"
-              src={currentExercise?.imageUrl || "https://placehold.co/400x400/374151/9ca3af?text=Image+Not+Found"}
-              alt="Exercise example"
-            />
+            <div className="relative w-full h-full min-h-[200px]">
+              <Image
+                className="exercise-image w-full h-full object-cover rounded-lg"
+                src={currentExercise?.imageUrl || "https://placehold.co/400x400/374151/9ca3af?text=Image+Not+Found"}
+                alt="Exercise example"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                priority={false}
+              />
+            </div>
           </div>
         ) : showTip && currentExercise && exerciseTips[currentExercise.name as keyof typeof exerciseTips] ? (
           <div className="exercise-tip-content w-full">

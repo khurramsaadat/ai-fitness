@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Fitness Coach</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        #main-canvas {
+            transform: scaleX(-1);
+            -webkit-transform: scaleX(-1);
+            object-fit: cover;
+        }
+        .feedback-card {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background-color: rgba(31, 41, 55, 0.5);
+            transition: all 0.3s ease;
+        }
+        .exercise-card {
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            background-color: #374151; /* Add a background color for debugging */
+        }
+        .exercise-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        }
+        .exercise-card.selected {
+            border-color: #4f46e5;
+            background-color: rgba(79, 70, 229, 0.3);
+        }
+        #app-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #main-content {
+            flex-grow: 1;
+            min-height: 0;
+        }
+        .modal, #mobile-menu {
+            transition: opacity 0.25s ease;
+        }
+        #mobile-menu-sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center">
+
+    <div id="app-container" class="w-full max-w-screen-2xl mx-auto flex flex-col p-2 sm:p-4 md:p-6 gap-4">
+        <!-- App Header -->
+        <header class="flex-shrink-0 flex justify-between items-center bg-gray-800/50 feedback-card rounded-2xl px-4 sm:px-6 py-3">
+            <div class="flex items-center gap-3">
+                <i data-lucide="dumbbell" class="text-indigo-400"></i>
+                <h1 class="text-lg sm:text-xl font-bold">AI Fitness Coach</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="history-button" class="bg-gray-700 hover:bg-gray-600 p-2 rounded-full transition-transform transform hover:scale-110" title="View Workout History">
+                    <i data-lucide="history" class="w-5 h-5"></i>
+                </button>
+                <button id="mute-button-header" class="bg-gray-700 hover:bg-gray-600 p-2 rounded-full transition-transform transform hover:scale-110" title="Toggle Audio">
+                    <i class="mute-icon" data-lucide="volume-2" class="w-5 h-5"></i>
+                </button>
+                <button id="menu-button" class="lg:hidden bg-gray-700 hover:bg-gray-600 p-2 rounded-full transition-transform transform hover:scale-110" title="Open Menu">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div id="main-content" class="flex flex-col lg:flex-row gap-6">
+            
+            <!-- Camera & Canvas Column -->
+            <div class="flex-grow rounded-2xl bg-gray-800 shadow-2xl overflow-hidden relative min-h-[480px]">
+                <video id="webcam" class="w-full h-full object-cover hidden" autoplay playsinline></video>
+                <canvas id="main-canvas" class="w-full h-full absolute top-0 left-0"></canvas>
+                
+                <div id="detection-overlay" class="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-md z-10 hidden">
+                    <p class="flex items-center gap-2 text-sm"><i data-lucide="user-x" class="w-4 h-4 text-yellow-400"></i> No person detected</p>
+                </div>
+
+                <div id="pause-overlay" class="absolute inset-0 flex-col items-center justify-center bg-gray-900 bg-opacity-80 z-20 hidden">
+                     <i data-lucide="pause-circle" class="w-24 h-24 text-white/80"></i>
+                     <p class="text-3xl font-bold mt-4">Paused</p>
+                </div>
+
+                <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 bg-opacity-80 z-30">
+                    <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p id="loading-text" class="mt-4 text-lg">Initializing AI Coach...</p>
+                </div>
+
+                <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 z-20 p-4 sm:p-8 text-center">
+                    <h1 id="start-screen-title" class="text-3xl sm:text-4xl font-bold mb-2">Welcome Back!</h1>
+                    <p id="summary-text" class="text-gray-300 mb-6 max-w-2xl text-sm sm:text-base">Select your exercises for today's workout.</p>
+                    <p id="start-screen-error" class="text-red-400 mb-4 hidden"></p>
+
+                    <div id="gemini-suggestion-box" class="hidden feedback-card rounded-lg p-4 w-full max-w-2xl mb-6 text-left"><h3 class="font-semibold text-indigo-300 flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5"></i> For Your Next Workout</h3><p id="gemini-suggestion-text" class="mt-2 text-gray-300"></p></div>
+                    
+                    <div id="exercise-selection" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 w-full max-w-4xl mb-6 border-2 border-red-500"></div>
+
+                    <button id="start-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-all transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled title="Start Workout">Start Workout</button>
+                </div>
+            </div>
+
+            <!-- Controls & Feedback Sidebar (Desktop) -->
+            <div id="desktop-sidebar" class="hidden lg:flex lg:w-80 flex-shrink-0 flex-col gap-4">
+                 <!-- Content will be injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="modal lg:hidden fixed inset-0 z-40 bg-black/60 hidden opacity-0">
+        <div id="mobile-menu-sidebar" class="absolute top-0 right-0 h-full w-80 bg-gray-900 shadow-2xl p-4 flex flex-col gap-4 transform translate-x-full">
+            <button id="close-menu-button" class="self-start p-2 rounded-full hover:bg-gray-700"><i data-lucide="x"></i></button>
+            <!-- Content will be injected by JS -->
+        </div>
+    </div>
+
+    <!-- Workout History Modal -->
+    <div id="history-modal" class="modal fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-700"><h2 class="text-xl font-bold">Workout History</h2><button id="close-history-button" class="p-2 rounded-full hover:bg-gray-700"><i data-lucide="x"></i></button></div>
+            <div id="history-content" class="p-6 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- UI Elements ---
+        const video = document.getElementById('webcam'), canvas = document.getElementById('main-canvas'), ctx = canvas.getContext('2d');
+        const loadingSpinner = document.getElementById('loading-spinner'), loadingText = document.getElementById('loading-text');
+        const startScreen = document.getElementById('start-screen'), startButton = document.getElementById('start-button'), startScreenTitle = document.getElementById('start-screen-title'), startScreenError = document.getElementById('start-screen-error');
+        const exerciseSelectionContainer = document.getElementById('exercise-selection');
+        const summaryTextEl = document.getElementById('summary-text'), geminiSuggestionBox = document.getElementById('gemini-suggestion-box'), geminiSuggestionText = document.getElementById('gemini-suggestion-text');
+        const resetButton = document.getElementById('reset-button-sidebar'); // Updated ID
+        const historyButton = document.getElementById('history-button'), historyModal = document.getElementById('history-modal'), closeHistoryButton = document.getElementById('close-history-button'), historyContent = document.getElementById('history-content');
+        const menuButton = document.getElementById('menu-button'), mobileMenu = document.getElementById('mobile-menu'), mobileMenuSidebar = document.getElementById('mobile-menu-sidebar'), desktopSidebar = document.getElementById('desktop-sidebar');
+        const muteButtonHeader = document.getElementById('mute-button-header'); // New element
+
+        // --- State Variables ---
+        let detector, poses, rafId, isMuted = false, workoutPlan = [], completedExercises = [], selectedExercises = [];
+        let workoutState = { isStarted: false, isPaused: false, currentExerciseIndex: 0, repCount: 0, startTime: null, timeElapsed: 0, holdTime: 0, holdStartTime: null, stage: null, feedback: "Select your exercises to begin!", feedbackType: 'info', personDetected: true };
+        const availableExercises = [
+            { name: "Squats", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/2261477/pexels-photo-2261477.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+            { name: "Push-ups", type: 'reps', target: 10, imageUrl: "https://images.pexels.com/photos/4162484/pexels-photo-4162484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'landscape' },
+            { name: "Bicep Curls", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/1431282/pexels-photo-1431282.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+            { name: "Jumping Jacks", type: 'reps', target: 20, imageUrl: "https://images.pexels.com/photos/7031706/pexels-photo-7031706.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+            { name: "Lunges", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/3112004/pexels-photo-3112004.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+            { name: "Plank", type: 'time', target: 30, imageUrl: "https://images.pexels.com/photos/3076516/pexels-photo-3076516.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'landscape' },
+        ];
+        const keypointMap = { 'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4, 'left_shoulder': 5, 'right_shoulder': 6, 'left_elbow': 7, 'right_elbow': 8, 'left_wrist': 9, 'right_wrist': 10, 'left_hip': 11, 'right_hip': 12, 'left_knee': 13, 'right_knee': 14, 'left_ankle': 15, 'right_ankle': 16 };
+
+        // --- GEMINI API FUNCTIONS ---
+        async function callGemini(prompt) {
+             const apiKey = ""; // Canvas provides this
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+             try {
+                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+                 if (!response.ok) throw new Error(`API call failed: ${response.status}`);
+                 const result = await response.json();
+                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                 if (!text) throw new Error("Invalid API response");
+                 return text;
+             } catch (error) { console.error("Gemini API call failed:", error); return null; }
+        }
+        async function getExerciseExplanation() {
+            if (!workoutState.isStarted || workoutState.currentExerciseIndex >= workoutPlan.length) return;
+            const currentExerciseName = workoutPlan[workoutState.currentExerciseIndex].name;
+            document.querySelectorAll('.regular-feedback-content').forEach(el => el.classList.remove('hidden'));
+            document.querySelectorAll('.exercise-image-content').forEach(el => el.classList.add('hidden'));
+            
+            document.querySelectorAll('.feedback-text').forEach(el => el.innerText = "✨ Getting tips for you...");
+            document.querySelectorAll('.feedback-icon').forEach(el => el.innerHTML = `<i data-lucide="sparkles" class="w-10 h-10 text-indigo-400"></i>`);
+            lucide.createIcons();
+            document.querySelectorAll('.explain-exercise-button').forEach(btn => btn.disabled = true);
+            const prompt = `Explain how to perform "${currentExerciseName}" with perfect form. Provide 2-3 concise bullet points for a beginner.`;
+            const explanation = await callGemini(prompt);
+            document.querySelectorAll('.feedback-text').forEach(el => el.innerText = explanation || "Sorry, couldn't get tips right now.");
+            document.querySelectorAll('.explain-exercise-button').forEach(btn => btn.disabled = false);
+        }
+        async function getWorkoutSummary() {
+            loadingText.innerText = '✨ Analyzing your performance...';
+            loadingSpinner.style.display = 'flex';
+            const summaryPrompt = `A user just did: ${JSON.stringify(completedExercises)}. 1. Write an encouraging 2-sentence summary. 2. Suggest one challenging variation for one exercise. Format: SUMMARY_TEXT|||SUGGESTION_TEXT`;
+            const summaryResponse = await callGemini(summaryPrompt);
+            loadingSpinner.style.display = 'none';
+            startScreen.style.display = 'flex';
+            startScreenTitle.innerText = "Workout Complete!";
+            if (summaryResponse && summaryResponse.includes('|||')) {
+                const [summary, suggestion] = summaryResponse.split('|||');
+                summaryTextEl.innerText = summary.trim();
+                geminiSuggestionText.innerText = suggestion.trim();
+                geminiSuggestionBox.style.display = 'block';
+            } else {
+                summaryTextEl.innerText = summaryResponse || `You crushed ${completedExercises.length} exercises!`;
+                geminiSuggestionBox.style.display = 'none';
+            }
+            lucide.createIcons();
+            startButton.innerText = "Start New Workout";
+            startButton.disabled = true;
+            selectedExercises = [];
+            renderExerciseSelection();
+        }
+
+        // --- UTILITY & UI FUNCTIONS ---
+        function calculateAngle(p1, p2, p3) { const radians = Math.atan2(p3.y-p2.y, p3.x-p2.x) - Math.atan2(p1.y-p2.y, p1.x-p2.x); let angle = Math.abs(radians*180.0/Math.PI); return angle > 180.0 ? 360 - angle : angle; }
+        function speak(text) { if (isMuted || !('speechSynthesis' in window)) return; const utterance = new SpeechSynthesisUtterance(text); utterance.rate = 1.2; window.speechSynthesis.cancel(); window.speechSynthesis.speak(utterance); }
+        function updateTimer() {
+             let displayTime = workoutState.timeElapsed;
+             if (workoutState.isStarted && !workoutState.isPaused && workoutState.personDetected && workoutState.startTime) {
+                 displayTime += Date.now() - workoutState.startTime;
+             }
+             const totalSeconds = Math.floor(displayTime / 1000);
+             const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+             const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+             document.querySelectorAll('.timer').forEach(el => el.innerText = `${minutes}:${seconds}`);
+        }
+
+        function updateUI() {
+            const isWorkoutRunning = workoutState.isStarted && workoutState.currentExerciseIndex < workoutPlan.length;
+
+            document.querySelectorAll('.explain-exercise-button').forEach(btn => { if(btn) btn.disabled = !isWorkoutRunning });
+            document.querySelectorAll('.next-exercise-button').forEach(btn => { if(btn) btn.disabled = !isWorkoutRunning });
+            document.querySelectorAll('.pause-button').forEach(btn => { if(btn) btn.disabled = !workoutState.isStarted });
+            // resetButton is now in the sidebar and always visible, no need to toggle display
+
+
+            if (!workoutState.isStarted) { updateTimer(); return; }
+            if(!isWorkoutRunning) { 
+                document.querySelectorAll('.exercise-name').forEach(el => el.innerText = "Workout Complete!");
+                document.querySelectorAll('.next-exercise-text').forEach(el => el.innerText = "Amazing job!");
+                return;
+            }
+
+            const currentExercise = workoutPlan[workoutState.currentExerciseIndex];
+            document.querySelectorAll('.exercise-name').forEach(el => el.innerText = currentExercise.name);
+            const nextExercise = workoutPlan[workoutState.currentExerciseIndex + 1];
+            document.querySelectorAll('.next-exercise-text').forEach(el => el.innerText = nextExercise ? `Next: ${nextExercise.name}` : "Last one!");
+            
+            if (currentExercise.type === 'time') {
+                document.querySelectorAll('.rep-count-label').forEach(el => el.innerText = 'HOLD');
+                const timeLeft = Math.max(0, currentExercise.target - workoutState.holdTime);
+                document.querySelectorAll('.rep-count').forEach(el => el.innerText = timeLeft.toFixed(0));
+            } else {
+                document.querySelectorAll('.rep-count-label').forEach(el => el.innerText = 'REPS');
+                document.querySelectorAll('.rep-count').forEach(el => el.innerText = workoutState.repCount);
+            }
+
+            updateTimer();
+            
+            const detectionOverlay = document.getElementById('detection-overlay');
+
+            document.querySelectorAll('.feedback-box').forEach(feedbackBox => {
+                const regularFeedback = feedbackBox.querySelector('.regular-feedback-content');
+                const imageFeedback = feedbackBox.querySelector('.exercise-image-content');
+                
+                if (workoutState.isStarted && !workoutState.personDetected) {
+                    regularFeedback.classList.add('hidden');
+                    imageFeedback.classList.remove('hidden');
+                    detectionOverlay.classList.remove('hidden');
+                    feedbackBox.querySelector('.exercise-image').src = currentExercise.imageUrl;
+                    feedbackBox.className = "feedback-box feedback-card rounded-2xl p-4 flex-grow flex flex-col justify-center items-center text-center transition-all duration-300 border-2 border-yellow-500 overflow-hidden";
+                } else {
+                    regularFeedback.classList.remove('hidden');
+                    imageFeedback.classList.add('hidden');
+                    detectionOverlay.classList.add('hidden');
+
+                    const feedbackTextEl = feedbackBox.querySelector('.feedback-text');
+                    if (feedbackTextEl.innerText !== workoutState.feedback) { 
+                        feedbackTextEl.innerText = workoutState.feedback; 
+                        if(workoutState.feedbackType !== 'info') speak(workoutState.feedback); 
+                    }
+                    const colors = { good: 'border-green-500', warning: 'border-yellow-500', info: 'border-transparent' };
+                    const icons = { good: 'check-circle', warning: 'alert-triangle', info: 'info' };
+                    const iconColors = { good: 'text-green-500', warning: 'text-yellow-500', info: 'text-blue-500' };
+                    feedbackBox.className = `feedback-box feedback-card rounded-2xl p-4 flex-grow flex flex-col justify-center items-center text-center transition-all duration-300 border-2 ${colors[workoutState.feedbackType]} overflow-hidden`;
+                    feedbackBox.querySelector('.feedback-icon').innerHTML = `<i data-lucide="${icons[workoutState.feedbackType]}" class="w-12 h-12 ${iconColors[workoutState.feedbackType]}"></i>`;
+                }
+            });
+            lucide.createIcons();
+        }
+
+        // --- DRAWING & POSE LOGIC ---
+        function drawKeypoints(keypoints) { keypoints.forEach(keypoint => { if (keypoint.score > 0.3) { ctx.beginPath(); ctx.arc(keypoint.x, keypoint.y, 5, 0, 2*Math.PI); ctx.fillStyle = '#4f46e5'; ctx.fill(); } }); }
+        function drawSkeleton(keypoints) { const adjacentKeyPoints = [['left_shoulder','right_shoulder'],['left_shoulder','left_elbow'],['right_shoulder','right_elbow'],['left_elbow','left_wrist'],['right_elbow','right_wrist'],['left_shoulder','left_hip'],['right_shoulder','right_hip'],['left_hip','right_hip'],['left_hip','left_knee'],['right_hip','right_knee'],['left_knee','left_ankle'],['right_knee','right_ankle']]; adjacentKeyPoints.forEach(pair => { const kp1 = keypoints[keypointMap[pair[0]]], kp2 = keypoints[keypointMap[pair[1]]]; if (kp1.score > 0.3 && kp2.score > 0.3) { ctx.beginPath(); ctx.moveTo(kp1.x, kp1.y); ctx.lineTo(kp2.x, kp2.y); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.stroke(); } }); }
+        
+        const exerciseProcessors = {
+            "Bicep Curls": (keypoints) => { /* ... same as before ... */ },
+            "Squats": (keypoints) => { /* ... same as before ... */ },
+            "Push-ups": (keypoints) => { /* ... same as before ... */ },
+            "Jumping Jacks": (keypoints) => { /* ... same as before ... */ },
+            "Lunges": (keypoints) => {
+                const leftKneeAngle = calculateAngle(keypoints[keypointMap['left_hip']], keypoints[keypointMap['left_knee']], keypoints[keypointMap['left_ankle']]);
+                const rightKneeAngle = calculateAngle(keypoints[keypointMap['right_hip']], keypoints[keypointMap['right_knee']], keypoints[keypointMap['right_ankle']]);
+                const leftHipAngle = calculateAngle(keypoints[keypointMap['left_shoulder']], keypoints[keypointMap['left_hip']], keypoints[keypointMap['left_knee']]);
+                const rightHipAngle = calculateAngle(keypoints[keypointMap['right_shoulder']], keypoints[keypointMap['right_hip']], keypoints[keypointMap['right_knee']]);
+                const inLungePosition = (leftKneeAngle < 120 && leftHipAngle < 120) || (rightKneeAngle < 120 && rightHipAngle < 120);
+                if (leftKneeAngle > 160 && rightKneeAngle > 160 && workoutState.stage === 'down') { workoutState.stage = 'up'; workoutState.repCount++; workoutState.feedback = "Good lunge!"; workoutState.feedbackType = 'good'; }
+                if (inLungePosition && workoutState.stage !== 'down') { workoutState.stage = 'down'; }
+            },
+            "Plank": (keypoints) => {
+                const leftShoulder = keypoints[keypointMap['left_shoulder']]; const leftHip = keypoints[keypointMap['left_hip']]; const leftAnkle = keypoints[keypointMap['left_ankle']];
+                const bodyAngle = calculateAngle(leftShoulder, leftHip, leftAnkle);
+                if (bodyAngle > 160 && bodyAngle < 200) {
+                    if (!workoutState.holdStartTime) { workoutState.holdStartTime = Date.now(); }
+                    workoutState.holdTime += (Date.now() - workoutState.holdStartTime) / 1000;
+                    workoutState.holdStartTime = Date.now();
+                    workoutState.feedback = "Hold it steady!"; workoutState.feedbackType = 'good';
+                } else {
+                    workoutState.holdStartTime = null; 
+                    workoutState.feedback = "Straighten your back!"; workoutState.feedbackType = 'warning';
+                }
+            }
+        };
+
+        // --- CORE WORKOUT LOGIC ---
+        async function poseDetectionFrame() {
+            if (!workoutState.isStarted || workoutState.isPaused || workoutState.currentExerciseIndex >= workoutPlan.length) return;
+            poses = await detector.estimatePoses(video);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const personWasDetected = workoutState.personDetected; // Store previous state
+            workoutState.personDetected = poses && poses.length > 0;
+
+            if (workoutState.personDetected) {
+                if (!personWasDetected) { // Person just became detected
+                    workoutState.startTime = Date.now();
+                }
+                const keypoints = poses[0].keypoints;
+                drawKeypoints(keypoints); drawSkeleton(keypoints);
+                const currentExercise = workoutPlan[workoutState.currentExerciseIndex];
+                if (exerciseProcessors[currentExercise.name]) { exerciseProcessors[currentExercise.name](keypoints); }
+                if (currentExercise.type === 'reps' && workoutState.repCount >= currentExercise.target) { goToNextExercise(); } 
+                else if (currentExercise.type === 'time' && workoutState.holdTime >= currentExercise.target) { goToNextExercise(); }
+            } else { // No person detected
+                if (personWasDetected && workoutState.startTime) { // Person just became undetected
+                    workoutState.timeElapsed += Date.now() - workoutState.startTime;
+                    workoutState.startTime = null;
+                }
+                if (workoutState.holdStartTime) workoutState.holdStartTime = null;
+            }
+            
+            updateUI();
+            rafId = requestAnimationFrame(poseDetectionFrame);
+        }
+        
+        function goToNextExercise() {
+             const currentExercise = workoutPlan[workoutState.currentExerciseIndex];
+             completedExercises.push({ name: currentExercise.name, type: currentExercise.type, completed: currentExercise.type === 'reps' ? workoutState.repCount : workoutState.holdTime });
+             speak(`Great job on the ${currentExercise.name}.`);
+             workoutState.currentExerciseIndex++;
+             if (workoutState.currentExerciseIndex >= workoutPlan.length) { endWorkout(); return; }
+             workoutState.repCount = 0; workoutState.stage = 'up'; workoutState.holdTime = 0; workoutState.holdStartTime = null;
+             const newExercise = workoutPlan[workoutState.currentExerciseIndex];
+             workoutState.feedback = `Next up: ${newExercise.name}. Get ready!`; workoutState.feedbackType = 'info';
+             speak(workoutState.feedback); updateUI();
+        }
+
+        function saveWorkoutToHistory() { /* ... same as before ... */ }
+        function endWorkout() { /* ... same as before ... */ }
+        function resetWorkout() {
+             cancelAnimationFrame(rafId);
+             if (video.srcObject) { video.srcObject.getTracks().forEach(track => track.stop()); video.style.display = 'none'; }
+             workoutState = { isStarted: false, isPaused: false, currentExerciseIndex: 0, repCount: 0, startTime: null, timeElapsed: 0, holdTime: 0, holdStartTime: null, stage: null, feedback: "Select your exercises to begin!", feedbackType: 'info', personDetected: true };
+             workoutPlan = []; completedExercises = []; selectedExercises = [];
+             startScreen.style.display = 'flex';
+             startScreenTitle.innerText = "Welcome Back!";
+             document.getElementById('pause-overlay').style.display = 'none';
+             summaryTextEl.innerText = "Select your exercises for today's workout.";
+             geminiSuggestionBox.style.display = 'none';
+             renderExerciseSelection();
+             updateUI();
+        }
+        function pauseWorkout() {
+            if (!workoutState.isStarted || workoutState.currentExerciseIndex >= workoutPlan.length) return;
+            workoutState.isPaused = true;
+            if (workoutState.personDetected && workoutState.startTime) { // Only add if person was detected when pausing
+                workoutState.timeElapsed += Date.now() - workoutState.startTime;
+            }
+            workoutState.startTime = null; // Clear startTime when paused
+            cancelAnimationFrame(rafId);
+            document.getElementById('pause-overlay').style.display = 'flex';
+            document.querySelectorAll('.pause-icon').forEach(i => i.setAttribute('data-lucide', 'play'));
+            document.querySelectorAll('.pause-text').forEach(s => s.innerText = "Resume");
+            lucide.createIcons();
+            speak("Workout paused."); updateUI();
+        }
+        function resumeWorkout() {
+            workoutState.isPaused = false;
+            if (workoutState.personDetected) { // Only set startTime if person is detected upon resuming
+                workoutState.startTime = Date.now();
+            }
+            document.getElementById('pause-overlay').style.display = 'none';
+            document.querySelectorAll('.pause-icon').forEach(i => i.setAttribute('data-lucide', 'pause'));
+            document.querySelectorAll('.pause-text').forEach(s => s.innerText = "Pause");
+            lucide.createIcons();
+            speak("Resuming.");
+            rafId = requestAnimationFrame(poseDetectionFrame);
+        }
+
+        // --- INITIALIZATION & SETUP ---
+        async function setupCamera(orientation) {
+            const constraints = {
+                video: {
+                    width: { ideal: 4096 },
+                    height: { ideal: 2160 },
+                    aspectRatio: orientation === 'landscape' ? 16/9 : 9/16
+                },
+                audio: false
+            };
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                return new Promise(resolve => video.onloadedmetadata = () => resolve(video));
+            } catch (e) {
+                console.error("Camera access error:", e);
+                return null;
+            }
+        }
+        async function loadModel() { const detectorConfig = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }; detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, detectorConfig); }
+        function renderExerciseSelection() {
+            exerciseSelectionContainer.innerHTML = '';
+            availableExercises.forEach(ex => {
+                const isSelected = selectedExercises.some(selEx => selEx.name === ex.name);
+                const card = document.createElement('div');
+                card.className = `exercise-card p-4 rounded-lg border-2 border-gray-700 text-center flex flex-col items-center justify-center gap-2 ${isSelected ? 'selected' : ''}`;
+                card.title = `Select ${ex.name}`; // Add tooltip to exercise card
+                card.textContent = ex.name;
+                card.onclick = () => toggleExerciseSelection(ex);
+                exerciseSelectionContainer.appendChild(card);
+            });
+        }
+        function toggleExerciseSelection(exercise) {
+            const index = selectedExercises.findIndex(ex => ex.name === exercise.name);
+            if (index > -1) selectedExercises.splice(index, 1);
+            else selectedExercises.push(exercise);
+            startButton.disabled = selectedExercises.length === 0;
+            renderExerciseSelection();
+        }
+        function displayWorkoutHistory() { /* ... same as before ... */ }
+
+        function setupSidebars() {
+            const sidebarHTML = `
+                <div class="feedback-card rounded-2xl p-4">
+                    <div class="flex justify-between items-start"><div><h2 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">CURRENT EXERCISE</h2><p class="exercise-name text-3xl font-bold mt-1">Get Ready</p></div><button class="explain-exercise-button bg-gray-700 hover:bg-gray-600 p-2 rounded-full transition-transform transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed" title="Get Exercise Tips"><i data-lucide="help-circle" class="w-5 h-5"></i></button></div>
+                    <p class="next-exercise-text text-gray-400 mt-1 text-sm">Select a workout to begin</p>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="feedback-card rounded-2xl p-4 text-center col-span-1"><h2 class="rep-count-label text-gray-400 text-xs font-semibold uppercase tracking-wider">REPS</h2><p class="rep-count text-5xl font-bold mt-1">0</p></div>
+                    <div class="feedback-card rounded-2xl p-4 text-center col-span-2"><h2 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">TIME</h2><p class="timer text-5xl font-bold mt-1">00:00</p></div>
+                </div>
+                <div class="feedback-box feedback-card rounded-2xl p-4 flex-grow flex flex-col justify-center items-center text-center transition-all duration-300 border-2 border-transparent overflow-hidden">
+                    <div class="regular-feedback-content"><div class="feedback-icon w-12 h-12 mb-2"></div><p class="feedback-text text-lg font-semibold">Let's get moving!</p></div>
+                    <div class="exercise-image-content hidden w-full h-full"><p class="text-xs text-gray-400 mb-2">Can't see you! Here's a tip:</p><img class="exercise-image w-full h-full object-cover rounded-lg" src="" alt="Exercise example" onerror="this.onerror=null;this.src='https://placehold.co/400x400/374151/9ca3af?text=Image+Not+Found';"></div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <button class="pause-button bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-transform transform hover:scale-105 disabled:opacity-50" disabled title="Pause/Resume Workout"><i class="pause-icon" data-lucide="pause" class="w-5 h-5"></i><span class="pause-text">Pause</span></button>
+                    <button class="next-exercise-button bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-transform transform hover:scale-105 disabled:opacity-50" disabled title="Skip Exercise"><i data-lucide="skip-forward" class="w-5 h-5"></i><span>Skip</span></button>
+                    <button id="reset-button-sidebar" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-transform transform hover:scale-105" title="Reset Workout"><i data-lucide="rotate-ccw" class="w-5 h-5"></i><span>Reset</span></button>
+                </div>`;
+            desktopSidebar.innerHTML = sidebarHTML;
+            mobileMenuSidebar.insertAdjacentHTML('beforeend', sidebarHTML);
+        }
+        function addSidebarEventListeners() {
+            document.querySelectorAll('.pause-button').forEach(btn => btn.addEventListener('click', () => { if (workoutState.isPaused) resumeWorkout(); else pauseWorkout(); }));
+            document.querySelectorAll('.next-exercise-button').forEach(btn => btn.addEventListener('click', () => { if (workoutState.isStarted && workoutState.currentExerciseIndex < workoutPlan.length) goToNextExercise(); }));
+            document.querySelectorAll('.explain-exercise-button').forEach(btn => btn.addEventListener('click', getExerciseExplanation));
+            // Mute button logic for the header button
+            if (muteButtonHeader) {
+                muteButtonHeader.addEventListener('click', () => { 
+                    isMuted = !isMuted; 
+                    document.querySelectorAll('.mute-icon').forEach(i => i.setAttribute('data-lucide', isMuted ? 'volume-x' : 'volume-2'));
+                    if(isMuted) window.speechSynthesis.cancel(); else speak("Audio on.");
+                    lucide.createIcons();
+                });
+            }
+            // Reset button logic for the sidebar button
+            if (resetButton) { // resetButton now refers to reset-button-sidebar
+                resetButton.addEventListener('click', resetWorkout);
+            }
+        }
+        async function init() {
+            setupSidebars();
+            lucide.createIcons();
+            addSidebarEventListeners();
+            loadingText.innerText = 'Loading AI model...';
+            try {
+                await loadModel();
+                loadingSpinner.style.display = 'none';
+                renderExerciseSelection(); 
+                updateUI();
+            } catch (error) {
+                loadingText.innerText = 'Failed to load AI model. Please refresh.';
+                console.error("Model loading failed:", error);
+            }
+        }
+        
+        // --- EVENT LISTENERS ---
+        startButton.addEventListener('click', async () => {
+            if (selectedExercises.length === 0) return;
+
+            loadingSpinner.style.display = 'flex';
+            loadingText.innerText = 'Setting up camera...';
+            startScreenError.classList.add('hidden');
+
+            const firstExerciseOrientation = selectedExercises[0].orientation;
+            const camera = await setupCamera(firstExerciseOrientation);
+
+            if (!camera) {
+                loadingSpinner.style.display = 'none';
+                startScreenError.innerText = 'Could not access camera. Please check permissions and try again.';
+                startScreenError.classList.remove('hidden');
+                return;
+            }
+
+            video.style.display = 'block'; 
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            loadingSpinner.style.display = 'none';
+            
+            workoutPlan = [...selectedExercises]; completedExercises = [];
+            geminiSuggestionBox.style.display = 'none';
+            workoutState = { ...workoutState, isStarted: true, isPaused: false, currentExerciseIndex: 0, repCount: 0, startTime: null, timeElapsed: 0, stage: 'up', holdTime: 0, holdStartTime: null, feedback: `Let's start with ${workoutPlan[0].name}`, feedbackType: 'info' };
+            startScreen.style.display = 'none'; speak(workoutState.feedback); poseDetectionFrame(); updateUI();
+        });
+        historyButton.addEventListener('click', () => { displayWorkoutHistory(); historyModal.classList.remove('hidden'); setTimeout(() => historyModal.classList.remove('opacity-0'), 10); });
+        closeHistoryButton.addEventListener('click', () => { historyModal.classList.add('opacity-0'); setTimeout(() => historyModal.classList.add('hidden'), 250); });
+        menuButton.addEventListener('click', () => { mobileMenu.classList.remove('hidden'); setTimeout(() => { mobileMenu.classList.remove('opacity-0'); mobileMenuSidebar.classList.remove('translate-x-full'); }, 10); });
+        document.getElementById('close-menu-button').addEventListener('click', () => { mobileMenu.classList.add('opacity-0'); mobileMenuSidebar.classList.add('translate-x-full'); setTimeout(() => mobileMenu.classList.add('hidden'), 250); });
+        
+        init();
+    </script>
+</body>
+</html>

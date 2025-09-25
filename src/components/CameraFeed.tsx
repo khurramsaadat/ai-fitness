@@ -1,4 +1,4 @@
-import { UserX, PauseCircle } from 'lucide-react';
+import { PauseCircle, Target } from 'lucide-react';
 import React, { RefObject } from 'react';
 
 interface CameraFeedProps {
@@ -8,9 +8,25 @@ interface CameraFeedProps {
   showLoadingSpinner: boolean;
   showPauseOverlay: boolean;
   showDetectionOverlay: boolean;
+  poseConfidence: number;
+  formScore: number;
+  lowConfidenceNotice: boolean;
 }
 
-const CameraFeed = ({ videoRef, canvasRef, loadingText, showLoadingSpinner, showPauseOverlay, showDetectionOverlay }: CameraFeedProps) => {
+const CameraFeed = ({
+  videoRef,
+  canvasRef,
+  loadingText,
+  showLoadingSpinner,
+  showPauseOverlay,
+  showDetectionOverlay,
+  poseConfidence,
+  formScore,
+  lowConfidenceNotice
+}: CameraFeedProps) => {
+  const clampedConfidence = Math.max(0, Math.min(100, Math.round(poseConfidence)));
+  const clampedForm = Math.max(0, Math.min(100, Math.round(formScore)));
+
   return (
     <div className="flex-grow rounded-2xl bg-card shadow-2xl overflow-hidden relative min-h-[480px] border border-border">
       <video
@@ -26,12 +42,27 @@ const CameraFeed = ({ videoRef, canvasRef, loadingText, showLoadingSpinner, show
         ref={canvasRef}
       ></canvas>
 
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
+        <div className="bg-black/60 text-white px-4 py-2 rounded-lg shadow-lg border border-cyan-400/60 backdrop-blur-sm">
+          <p className="text-xs uppercase tracking-widest text-cyan-200">Confidence</p>
+          <p className="text-xl font-semibold text-cyan-100">{clampedConfidence}%</p>
+        </div>
+        <div className="bg-black/60 text-white px-4 py-2 rounded-lg shadow-lg border border-cyan-400/60 backdrop-blur-sm flex items-center gap-2">
+          <Target className="w-4 h-4 text-cyan-300" />
+          <div>
+            <p className="text-xs uppercase tracking-widest text-cyan-200">Form</p>
+            <p className="text-lg font-semibold text-cyan-100">{clampedForm}%</p>
+          </div>
+        </div>
+      </div>
+
       <div
         id="detection-overlay"
-        className={`absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-md z-10 ${showDetectionOverlay ? '' : 'hidden'}`}
+        className={`absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-md z-10 border border-cyan-300/40 ${showDetectionOverlay ? '' : 'hidden'}`}
       >
         <p className="flex items-center gap-2 text-sm">
-          <UserX className="w-4 h-4 text-primary" /> No person detected
+          <span className="inline-flex h-2 w-2 rounded-full bg-red-400 animate-pulse"></span>
+          {lowConfidenceNotice ? 'Tracking lost – step back into frame' : 'No person detected'}
         </p>
       </div>
 
