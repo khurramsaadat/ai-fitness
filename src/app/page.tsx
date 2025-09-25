@@ -210,9 +210,9 @@ export default function Home() {
     const personWasDetected = workoutState.personDetected;
     let poses;
     try {
-      poses = await detector.current.estimateSinglePose(video, {
-        flipHorizontal: true,
-      });
+        poses = await detector.current.estimateSinglePose(video, {
+          flipHorizontal: true,
+        });
     } catch (error) {
       console.error("Error estimating poses:", error);
       setWorkoutState(prevState => ({ ...prevState, personDetected: false, feedback: "Pose detection error!", feedbackType: 'warning' }));
@@ -470,7 +470,7 @@ export default function Home() {
       }
       try {
         detector.current = await posenet.load();
-        console.log("initModel: Model loaded successfully.");
+        console.log("initModel: PoseNet model loaded successfully.");
         setShowLoadingSpinner(false);
         console.log("initModel: Loading spinner hidden.");
       } catch (error) {
