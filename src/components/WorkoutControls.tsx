@@ -34,7 +34,7 @@ const WorkoutControls = ({ onPause, onResume, onSkip, onReset, workoutState }: W
       </button>
       <button
         className="next-exercise-button bg-secondary hover:bg-accent text-secondary-foreground font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-transform transform hover:scale-105 disabled:opacity-50"
-        disabled={!workoutState.isStarted || workoutState.currentExerciseIndex >= 0} // Adjust as needed
+        disabled={!workoutState.isStarted}
         title="Skip Exercise"
         onClick={onSkip}
       >

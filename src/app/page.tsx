@@ -6,10 +6,8 @@ import WorkoutControls from '@/components/WorkoutControls';
 import FeedbackPanel from '@/components/FeedbackPanel';
 import CameraFeed from '@/components/CameraFeed';
 import ExerciseSelection from '@/components/ExerciseSelection';
-// Temporarily disabled pose detection for testing
-// import * as tf from '@tensorflow/tfjs';
-// import '@tensorflow/tfjs-backend-webgl';
-// import * as posenet from '@tensorflow-models/posenet';
+// Using TensorFlow.js and pose-detection from CDN (loaded in layout.tsx)
+// This avoids all npm dependency conflicts
 
 interface Exercise {
   name: string;
@@ -135,6 +133,130 @@ const average = (values: number[]) => {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 };
 
+// Enhanced drawing functions for beautiful pose visualization
+const drawKeypoints = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
+  keypoints.forEach((keypoint, index) => {
+    if (keypoint.score > 0.3) {
+      const size = clamp(keypoint.score * 15, 4, 12);
+      const alpha = clamp(keypoint.score, 0.4, 1);
+      
+      // Create radial gradient for each keypoint
+      const gradient = ctx.createRadialGradient(
+        keypoint.x, keypoint.y, 0,
+        keypoint.x, keypoint.y, size
+      );
+      
+      // Beautiful gradient colors based on keypoint type
+      if (index <= 4) { // Head keypoints (nose, eyes, ears)
+        gradient.addColorStop(0, `rgba(255, 215, 0, ${alpha})`); // Gold center
+        gradient.addColorStop(0.6, `rgba(56, 189, 248, ${alpha})`); // Cyan middle
+        gradient.addColorStop(1, `rgba(14, 165, 233, ${alpha * 0.3})`); // Blue edge
+      } else if (index >= 5 && index <= 10) { // Arms
+        gradient.addColorStop(0, `rgba(34, 197, 94, ${alpha})`); // Green center
+        gradient.addColorStop(0.6, `rgba(56, 189, 248, ${alpha})`); // Cyan middle
+        gradient.addColorStop(1, `rgba(14, 165, 233, ${alpha * 0.3})`); // Blue edge
+      } else { // Body and legs
+        gradient.addColorStop(0, `rgba(168, 85, 247, ${alpha})`); // Purple center
+        gradient.addColorStop(0.6, `rgba(56, 189, 248, ${alpha})`); // Cyan middle
+        gradient.addColorStop(1, `rgba(14, 165, 233, ${alpha * 0.3})`); // Blue edge
+      }
+      
+      // Draw outer glow
+      ctx.beginPath();
+      ctx.arc(keypoint.x, keypoint.y, size + 2, 0, 2 * Math.PI);
+      ctx.fillStyle = `rgba(56, 189, 248, ${alpha * 0.2})`;
+      ctx.fill();
+      
+      // Draw main keypoint with gradient
+      ctx.beginPath();
+      ctx.arc(keypoint.x, keypoint.y, size, 0, 2 * Math.PI);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      
+      // Add bright inner highlight
+      ctx.beginPath();
+      ctx.arc(keypoint.x, keypoint.y, size * 0.3, 0, 2 * Math.PI);
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+      ctx.fill();
+    }
+  });
+};
+
+const drawSkeleton = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
+  const adjacentKeypoints = [
+    { indices: [0, 1], type: 'head' }, { indices: [0, 2], type: 'head' }, 
+    { indices: [1, 3], type: 'head' }, { indices: [2, 4], type: 'head' }, // head
+    { indices: [5, 6], type: 'torso' }, // shoulders
+    { indices: [5, 7], type: 'arm' }, { indices: [7, 9], type: 'arm' }, // left arm
+    { indices: [6, 8], type: 'arm' }, { indices: [8, 10], type: 'arm' }, // right arm
+    { indices: [5, 11], type: 'torso' }, { indices: [6, 12], type: 'torso' }, 
+    { indices: [11, 12], type: 'torso' }, // torso
+    { indices: [11, 13], type: 'leg' }, { indices: [13, 15], type: 'leg' }, // left leg
+    { indices: [12, 14], type: 'leg' }, { indices: [14, 16], type: 'leg' } // right leg
+  ];
+
+  adjacentKeypoints.forEach(({ indices: [i, j], type }) => {
+    const kp1 = keypoints[i];
+    const kp2 = keypoints[j];
+    if (kp1 && kp2 && kp1.score > 0.3 && kp2.score > 0.3) {
+      const alpha = clamp((kp1.score + kp2.score) / 2, 0.4, 1);
+      const lineWidth = clamp(alpha * 12, 6, 12);
+      
+      // Create linear gradient for the line
+      const gradient = ctx.createLinearGradient(kp1.x, kp1.y, kp2.x, kp2.y);
+      
+      // Different colors for different body parts
+      switch (type) {
+        case 'head':
+          gradient.addColorStop(0, `rgba(255, 215, 0, ${alpha})`); // Gold
+          gradient.addColorStop(1, `rgba(56, 189, 248, ${alpha})`); // Cyan
+          break;
+        case 'arm':
+          gradient.addColorStop(0, `rgba(34, 197, 94, ${alpha})`); // Green
+          gradient.addColorStop(0.5, `rgba(56, 189, 248, ${alpha})`); // Cyan
+          gradient.addColorStop(1, `rgba(34, 197, 94, ${alpha})`); // Green
+          break;
+        case 'torso':
+          gradient.addColorStop(0, `rgba(56, 189, 248, ${alpha})`); // Cyan
+          gradient.addColorStop(1, `rgba(14, 165, 233, ${alpha})`); // Blue
+          break;
+        case 'leg':
+          gradient.addColorStop(0, `rgba(168, 85, 247, ${alpha})`); // Purple
+          gradient.addColorStop(0.5, `rgba(56, 189, 248, ${alpha})`); // Cyan
+          gradient.addColorStop(1, `rgba(168, 85, 247, ${alpha})`); // Purple
+          break;
+      }
+      
+      // Draw shadow/glow effect
+      ctx.beginPath();
+      ctx.moveTo(kp1.x, kp1.y);
+      ctx.lineTo(kp2.x, kp2.y);
+      ctx.lineWidth = lineWidth + 6;
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.3})`;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      
+      // Draw main gradient line
+      ctx.beginPath();
+      ctx.moveTo(kp1.x, kp1.y);
+      ctx.lineTo(kp2.x, kp2.y);
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = gradient;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      
+      // Add bright inner line
+      ctx.beginPath();
+      ctx.moveTo(kp1.x, kp1.y);
+      ctx.lineTo(kp2.x, kp2.y);
+      ctx.lineWidth = Math.max(2, lineWidth * 0.4);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  });
+};
+
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -245,47 +367,9 @@ export default function Home() {
     }));
   };
 
-  const drawKeypoints = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
-    keypoints.forEach(keypoint => {
-      if (keypoint.score > 0.3) {
-        ctx.beginPath();
-        ctx.arc(keypoint.x, keypoint.y, 5, 0, 2 * Math.PI);
-        ctx.fillStyle = '#06b6d4'; // cyan-500
-        ctx.fill();
-      }
-    });
-  };
+  // Using the beautiful drawKeypoints function defined above
 
-  const drawSkeleton = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
-    const keypointMap: { [key: string]: number } = {
-      'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4,
-      'left_shoulder': 5, 'right_shoulder': 6, 'left_elbow': 7, 'right_elbow': 8,
-      'left_wrist': 9, 'right_wrist': 10, 'left_hip': 11, 'right_hip': 12,
-      'left_knee': 13, 'right_knee': 14, 'left_ankle': 15, 'right_ankle': 16
-    };
-
-    const adjacentKeyPoints = [
-      ['left_shoulder', 'right_shoulder'], ['left_shoulder', 'left_elbow'],
-      ['right_shoulder', 'right_elbow'], ['left_elbow', 'left_wrist'],
-      ['right_elbow', 'right_wrist'], ['left_shoulder', 'left_hip'],
-      ['right_shoulder', 'right_hip'], ['left_hip', 'right_hip'],
-      ['left_hip', 'left_knee'], ['right_hip', 'right_knee'],
-      ['left_knee', 'left_ankle'], ['right_knee', 'right_ankle']
-    ];
-
-    adjacentKeyPoints.forEach(pair => {
-      const kp1 = keypoints[keypointMap[pair[0]]];
-      const kp2 = keypoints[keypointMap[pair[1]]];
-      if (kp1 && kp2 && kp1.score > 0.3 && kp2.score > 0.3) {
-        ctx.beginPath();
-        ctx.moveTo(kp1.x, kp1.y);
-        ctx.lineTo(kp2.x, kp2.y);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(6, 182, 212, 0.8)'; // cyan-500 with alpha
-        ctx.stroke();
-      }
-    });
-  };
+  // Using the beautiful drawSkeleton function defined above
 
   const goToNextExercise = useCallback(() => {
     setWorkoutState(prevState => {
@@ -493,18 +577,15 @@ export default function Home() {
       return;
     }
 
+    // Real pose detection using CDN-loaded libraries
     let poses: any[] = [];
-    // Temporarily disabled pose detection for testing
-    // try {
-    //   const pose = await detector.current.estimateSinglePose(video, {
-    //     flipHorizontal: true
-    //   });
-    //   if (pose && pose.keypoints) {
-    //     poses = [pose];
-    //   }
-    // } catch (error) {
-    //   console.error('Error estimating poses:', error);
-    // }
+    try {
+      if (detector.current) {
+        poses = await detector.current.estimatePoses(video);
+      }
+    } catch (error) {
+      console.error('Error estimating poses:', error);
+    }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -527,37 +608,20 @@ export default function Home() {
       return;
     }
 
-    const keypoints = poses[0].keypoints;
+    // Process real pose data
+    const pose = poses[0];
+    const keypoints = pose.keypoints || [];
     
-    // PoseNet already provides keypoints in image coordinates, just scale to canvas
-    const scaleX = canvasRef.current!.width / video.videoWidth;
-    const scaleY = canvasRef.current!.height / video.videoHeight;
-    
-    const normalizedKeypoints = keypoints.map((kp: any) => ({
-      ...kp,
-      x: kp.position.x * scaleX,
-      y: kp.position.y * scaleY,
-      score: kp.score
-    }));
-    
-    // Draw pose visualization
-    drawKeypoints(normalizedKeypoints, ctx);
-    drawSkeleton(normalizedKeypoints, ctx);
-    
-    // Calculate simple confidence
-    const validKeypoints = normalizedKeypoints.filter((kp: any) => kp.score > 0.3);
+    // Calculate pose confidence from keypoints
+    const validKeypoints = keypoints.filter((kp: any) => kp.score > 0.3);
     const poseConfidence = validKeypoints.length > 8 ? 
       Math.round(validKeypoints.reduce((sum: number, kp: any) => sum + kp.score, 0) / validKeypoints.length * 100) : 0;
     
+    // Draw pose visualization
+    drawKeypoints(keypoints, ctx);
+    drawSkeleton(keypoints, ctx);
+    
     lowConfidenceFrameCount.current = 0;
-
-    // Simple exercise processing like the reference
-    const keypointMap: { [key: string]: number } = {
-      'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4,
-      'left_shoulder': 5, 'right_shoulder': 6, 'left_elbow': 7, 'right_elbow': 8,
-      'left_wrist': 9, 'right_wrist': 10, 'left_hip': 11, 'right_hip': 12,
-      'left_knee': 13, 'right_knee': 14, 'left_ankle': 15, 'right_ankle': 16
-    };
 
     setWorkoutState(prevState => {
       const timeNow = Date.now();
@@ -578,31 +642,83 @@ export default function Home() {
         startTime = null;
       }
 
-      // Simple exercise processing
+      // Real exercise processing using pose keypoints
       let repCount = prevState.repCount;
       let stage = prevState.stage;
       let feedback = prevState.feedback;
       let feedbackType = prevState.feedbackType;
-      let formScore = 80; // Default form score
+      let formScore = 75; // Default form score
 
-      if (personDetected && currentExercise.name === 'Bicep Curls') {
-        const leftElbow = normalizedKeypoints[keypointMap['left_elbow']];
-        const leftShoulder = normalizedKeypoints[keypointMap['left_shoulder']];
-        const leftWrist = normalizedKeypoints[keypointMap['left_wrist']];
-        
-        if (leftElbow && leftShoulder && leftWrist && 
-            leftElbow.score > 0.3 && leftShoulder.score > 0.3 && leftWrist.score > 0.3) {
-          const angle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+      // Process exercises based on keypoints
+      if (personDetected && keypoints.length >= 17) {
+        if (currentExercise.name === 'Bicep Curls') {
+          const leftElbow = keypoints[7]; // Left elbow
+          const leftShoulder = keypoints[5]; // Left shoulder  
+          const leftWrist = keypoints[9]; // Left wrist
           
-          if (angle > 160 && stage !== 'down') {
-            stage = 'down';
+          if (leftElbow && leftShoulder && leftWrist && 
+              leftElbow.score > 0.3 && leftShoulder.score > 0.3 && leftWrist.score > 0.3) {
+            
+            const angle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+            
+            // Form score based on angle quality
+            if (angle > 140 && angle < 180) {
+              formScore = 95; // Excellent extension
+            } else if (angle > 120) {
+              formScore = 85; // Good extension
+            } else if (angle < 40) {
+              formScore = 90; // Good curl
+            } else {
+              formScore = 70; // Moderate form
+            }
+            
+            // Rep counting logic
+            if (angle > 160 && stage !== 'down') {
+              stage = 'down';
+              feedback = 'Good extension!';
+              feedbackType = 'info';
+            }
+            if (angle < 40 && stage === 'down') {
+              repCount++;
+              stage = 'up';
+              feedback = `Great curl! Rep ${repCount}`;
+              feedbackType = 'good';
+            }
           }
-          if (angle < 30 && stage === 'down') {
-            repCount++;
-            stage = 'up';
-            feedback = 'Great curl!';
-            feedbackType = 'good';
+        } else if (currentExercise.name === 'Push-ups') {
+          // Basic push-up detection using shoulder and elbow positions
+          const leftShoulder = keypoints[5];
+          const rightShoulder = keypoints[6];
+          const leftElbow = keypoints[7];
+          const rightElbow = keypoints[8];
+          
+          if (leftShoulder && rightShoulder && leftElbow && rightElbow &&
+              leftShoulder.score > 0.3 && rightShoulder.score > 0.3 &&
+              leftElbow.score > 0.3 && rightElbow.score > 0.3) {
+            
+            const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+            const elbowY = (leftElbow.y + rightElbow.y) / 2;
+            const armBend = Math.abs(shoulderY - elbowY);
+            
+            formScore = armBend > 30 ? 85 : 70;
+            
+            if (armBend > 40 && stage !== 'down') {
+              stage = 'down';
+              feedback = 'Going down...';
+              feedbackType = 'info';
+            }
+            if (armBend < 20 && stage === 'down') {
+              repCount++;
+              stage = 'up';
+              feedback = `Great push-up! Rep ${repCount}`;
+              feedbackType = 'good';
+            }
           }
+        } else {
+          // For other exercises, use time-based or basic progression
+          formScore = 80;
+          feedback = `Keep going with ${currentExercise.name}!`;
+          feedbackType = 'info';
         }
       }
 
@@ -620,10 +736,8 @@ export default function Home() {
         feedbackType,
       };
 
-      // Check if exercise is complete
-      if (personDetected && currentExercise.type === 'reps' && repCount >= currentExercise.target) {
-        setTimeout(() => goToNextExercise(), 100);
-      }
+      // Let user control workout progression - no auto-advance
+      // User can manually skip when they want to move to next exercise
 
       setPoseMetrics({
         poseConfidence,
@@ -836,20 +950,38 @@ export default function Home() {
 
   useEffect(() => {
     const initModel = async () => {
-      console.log("initModel: Skipping model initialization for testing.");
-      // Temporarily disabled pose detection
-      // if (typeof tf === 'undefined') {
-      //   console.error("initModel: TensorFlow is not loaded");
-      //   return;
-      // }
+      console.log("initModel: Starting pose detection model initialization.");
+      
+      // Wait for CDN scripts to load
+      let attempts = 0;
+      while (attempts < 50) {
+        if (typeof window !== 'undefined' && 
+            (window as any).tf && 
+            (window as any).poseDetection) {
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!(window as any).tf || !(window as any).poseDetection) {
+        console.error("initModel: TensorFlow.js or pose-detection not loaded from CDN");
+        setLoadingText("Failed to load AI model. Please refresh.");
+        return;
+      }
+      
       try {
-        // detector.current = await posenet.load({
-        //   architecture: 'MobileNetV1',
-        //   outputStride: 16,
-        //   inputResolution: { width: 640, height: 480 },
-        //   multiplier: 0.75
-        // });
-        console.log("initModel: Model initialization skipped for testing.");
+        const detectorConfig = {
+          modelType: (window as any).poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+          enableSmoothing: true
+        };
+        
+        detector.current = await (window as any).poseDetection.createDetector(
+          (window as any).poseDetection.SupportedModels.MoveNet, 
+          detectorConfig
+        );
+        
+        console.log("initModel: MoveNet model loaded successfully from CDN.");
         setShowLoadingSpinner(false);
         console.log("initModel: Loading spinner hidden.");
       } catch (error) {
@@ -857,6 +989,7 @@ export default function Home() {
         setLoadingText("Failed to load AI model. Please refresh.");
       }
     };
+    
     initModel();
 
     return () => {

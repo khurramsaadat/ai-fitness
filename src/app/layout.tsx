@@ -25,6 +25,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* TensorFlow.js and Pose Detection - CDN approach like the working reference */}
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
