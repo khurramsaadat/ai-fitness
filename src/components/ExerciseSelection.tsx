@@ -83,7 +83,7 @@ const ExerciseSelection = ({
         id="exercise-selection"
         className={`grid w-full ${
           isMobile 
-            ? 'grid-cols-2 gap-3 flex-1 max-w-none mb-4' 
+            ? 'grid-cols-3 gap-2 flex-1 max-w-none mb-4' // 3 columns on mobile to show all cards
             : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mb-8'
         }`}
       >
@@ -102,7 +102,7 @@ const ExerciseSelection = ({
             >
               {/* Exercise Image */}
               <div className={`relative w-full ${
-                isMobile ? 'aspect-[3/4]' : 'aspect-[4/3]'
+                isMobile ? 'aspect-[4/5]' : 'aspect-[4/3]' // Slightly less tall for 3-column mobile layout
               }`}>
                 <Image
                   src={exercise.imageUrl}
@@ -127,22 +127,22 @@ const ExerciseSelection = ({
                 
                 {/* Exercise Content Overlay */}
                 <div className={`absolute bottom-0 left-0 right-0 ${
-                  isMobile ? 'p-2' : 'p-4'
+                  isMobile ? 'p-1' : 'p-4' // Minimal padding for 3-column layout
                 }`}>
                   <h3 className={`text-white font-bold drop-shadow-lg ${
-                    isMobile ? 'text-sm mb-1' : 'text-xl mb-2'
+                    isMobile ? 'text-xs mb-1 leading-tight' : 'text-xl mb-2'
                   }`}>
                     {exercise.name}
                   </h3>
                   
-                  <div className={`flex items-center justify-between text-white/90 ${
-                    isMobile ? 'text-xs' : 'text-sm'
+                  <div className={`flex items-center text-white/90 ${
+                    isMobile ? 'text-xs justify-center' : 'text-sm justify-between'
                   }`}>
                     <div className="flex items-center gap-1">
                       {exercise.type === 'reps' ? (
-                        <RotateCcw className={isMobile ? 'w-3 h-3' : 'w-4 h-4'} />
+                        <RotateCcw className={isMobile ? 'w-2 h-2' : 'w-4 h-4'} />
                       ) : (
-                        <Clock className={isMobile ? 'w-3 h-3' : 'w-4 h-4'} />
+                        <Clock className={isMobile ? 'w-2 h-2' : 'w-4 h-4'} />
                       )}
                       <span className="font-medium">
                         {exercise.target} {exercise.type === 'reps' ? 'reps' : 'sec'}

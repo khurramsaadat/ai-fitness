@@ -918,6 +918,20 @@ export default function Home() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
+      
+      // Apply horizontal flip for front camera on mobile to show correct orientation
+      if (isMobileDevice() && cameraFacing === 'user') {
+        video.style.transform = 'scaleX(-1)';
+        if (canvasRef.current) {
+          canvasRef.current.style.transform = 'scaleX(-1)';
+        }
+      } else {
+        video.style.transform = 'none';
+        if (canvasRef.current) {
+          canvasRef.current.style.transform = 'none';
+        }
+      }
+      
       return new Promise<HTMLVideoElement>(resolve => {
         video.onloadedmetadata = () => {
           video.play(); // Ensure video plays automatically
@@ -1056,8 +1070,19 @@ export default function Home() {
       if (currentExercise) {
         await setupCamera(currentExercise.orientation);
       }
+    } else {
+      // Apply transform immediately if not in workout
+      if (videoRef.current && canvasRef.current) {
+        if (isMobileDevice() && newFacing === 'user') {
+          videoRef.current.style.transform = 'scaleX(-1)';
+          canvasRef.current.style.transform = 'scaleX(-1)';
+        } else {
+          videoRef.current.style.transform = 'none';
+          canvasRef.current.style.transform = 'none';
+        }
+      }
     }
-  }, [cameraFacing, workoutState.isStarted, workoutState.currentExerciseIndex, workoutPlan, setupCamera]);
+  }, [cameraFacing, workoutState.isStarted, workoutState.currentExerciseIndex, workoutPlan, setupCamera, isMobileDevice]);
 
   const handleStartWorkout = useCallback(async () => {
     console.log("handleStartWorkout: Starting workout.");
@@ -1275,6 +1300,8 @@ export default function Home() {
         <main className={`${
           isFullscreen && workoutState.isStarted && isMobile
             ? 'flex-1 flex flex-col relative' 
+            : isMobile && !workoutState.isStarted
+            ? 'flex-1 flex flex-col overflow-hidden' // Full width on mobile when showing exercise cards
             : 'flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden'
         }`}>
           {/* Camera Feed and Exercise Selection */}
@@ -1307,49 +1334,68 @@ export default function Home() {
             )}
           </div>
 
+          {/* Mobile Stats Section - Below Camera on Mobile */}
+          {isMobile && workoutState.isStarted && isFullscreen && (
+            <div className="bg-background/95 backdrop-blur-sm border-t border-border p-4">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Reps</div>
+                  <div className="text-2xl font-bold text-primary">{workoutState.repCount}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Time</div>
+                  <div className="text-2xl font-bold text-primary">{Math.floor(workoutState.timeElapsed / 1000)}s</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Form</div>
+                  <div className="text-2xl font-bold text-primary">{Math.round(poseMetrics.formScore)}%</div>
+                </div>
+              </div>
+              
+              {/* Exercise Info */}
+              <div className="text-center mb-4">
+                <div className="text-lg font-semibold text-foreground">
+                  {workoutPlan[workoutState.currentExerciseIndex]?.name}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {workoutState.currentExerciseIndex + 1} of {workoutPlan.length}
+                </div>
+              </div>
+              
+              {/* Mobile Controls */}
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={workoutState.isPaused ? resumeWorkout : pauseWorkout}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full font-medium"
+                >
+                  {workoutState.isPaused ? '▶️' : '⏸️'}
+                  <span>{workoutState.isPaused ? 'Resume' : 'Pause'}</span>
+                </button>
+                <button
+                  onClick={goToNextExercise}
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-full font-medium"
+                >
+                  ⏭️ <span>Skip</span>
+                </button>
+                <button
+                  onClick={resetWorkout}
+                  className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-full font-medium"
+                >
+                  🔄 <span>Reset</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Feedback Panel and Controls */}
           <div className={`${
             isFullscreen && workoutState.isStarted && isMobile
-              ? 'absolute bottom-0 left-0 right-0 z-10 bg-background/90 backdrop-blur-sm border-t p-2' 
+              ? 'hidden' 
+              : isMobile && !workoutState.isStarted
+              ? 'hidden' // Hide on mobile when not in workout to show full exercise cards
               : 'flex lg:w-80 flex-shrink-0 flex-col gap-4 min-h-0'
           }`}>
-            {/* Mobile workout controls - visible during workout on mobile */}
-            {workoutState.isStarted && (
-              <div className={`${
-                isFullscreen && isMobile
-                  ? 'flex flex-row justify-between items-center gap-2 mb-2' 
-                  : 'hidden'
-              }`}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {workoutPlan[workoutState.currentExerciseIndex]?.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {workoutState.repCount} reps • {Math.floor(workoutState.timeElapsed / 1000)}s
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={workoutState.isPaused ? resumeWorkout : pauseWorkout}
-                    className="p-2 bg-primary text-primary-foreground rounded-full"
-                  >
-                    {workoutState.isPaused ? '▶️' : '⏸️'}
-                  </button>
-                  <button
-                    onClick={goToNextExercise}
-                    className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                  >
-                    ⏭️
-                  </button>
-                  <button
-                    onClick={resetWorkout}
-                    className="p-2 bg-destructive text-destructive-foreground rounded-full"
-                  >
-                    🔄
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Desktop feedback panel and controls */}
             <div className={`${
