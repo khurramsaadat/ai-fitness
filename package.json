@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "cleanup": "node scripts/cleanup-port.js",
+    "predev": "node scripts/cleanup-port.js",
     "dev": "cross-env PORT=3000 next dev --turbopack",
+    "dev:clean": "npm run cleanup && npm run dev",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "kill-port": "node scripts/cleanup-port.js"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

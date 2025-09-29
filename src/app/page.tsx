@@ -281,16 +281,16 @@ export default function Home() {
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user'); // 'user' = front, 'environment' = back
 
   const availableExercises: Exercise[] = [
-    { name: "Squats", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/2261477/pexels-photo-2261477.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Push-ups", type: 'reps', target: 10, imageUrl: "https://images.pexels.com/photos/4162484/pexels-photo-4162484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Bicep Curls", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/1431282/pexels-photo-1431282.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Jumping Jacks", type: 'reps', target: 20, imageUrl: "https://images.pexels.com/photos/7031706/pexels-photo-7031706.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Lunges", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/3112004/pexels-photo-3112004.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Plank", type: 'time', target: 30, imageUrl: "https://images.pexels.com/photos/3076516/pexels-photo-3076516.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'landscape' },
+    { name: "Squats", type: 'reps', target: 12, imageUrl: "/squats.jpg", orientation: 'portrait' },
+    { name: "Push-ups", type: 'reps', target: 10, imageUrl: "/push-ups.jpg", orientation: 'portrait' },
+    { name: "Bicep Curls", type: 'reps', target: 12, imageUrl: "/bicep-curls.jpg", orientation: 'portrait' },
+    { name: "Jumping Jacks", type: 'reps', target: 20, imageUrl: "/jumping-jacks.jpg", orientation: 'portrait' },
+    { name: "Lunges", type: 'reps', target: 12, imageUrl: "/lunges.jpg", orientation: 'portrait' },
+    { name: "Plank", type: 'time', target: 30, imageUrl: "/Plank.jpg", orientation: 'landscape' },
     // Additional bodyweight exercises
-    { name: "Mountain Climbers", type: 'reps', target: 20, imageUrl: "https://images.pexels.com/photos/4164856/pexels-photo-4164856.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Burpees", type: 'reps', target: 8, imageUrl: "https://images.pexels.com/photos/4164853/pexels-photo-4164853.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "High Knees", type: 'reps', target: 30, imageUrl: "https://images.pexels.com/photos/4164851/pexels-photo-4164851.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+    { name: "Mountain Climbers", type: 'reps', target: 20, imageUrl: "/mountain-climbers.jpg", orientation: 'portrait' },
+    { name: "Burpees", type: 'reps', target: 8, imageUrl: "/burpees.jpg", orientation: 'portrait' },
+    { name: "High Knees", type: 'reps', target: 30, imageUrl: "/high-knees.jpg", orientation: 'portrait' },
   ];
 
   const poseConfidenceDeque = useRef<number[]>([]);
