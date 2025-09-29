@@ -1,11 +1,13 @@
-import { Dumbbell, History, Volume2, VolumeX, Menu } from 'lucide-react';
+import { Dumbbell, History, Volume2, VolumeX, Menu, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
   onToggleMute: () => void;
   isMuted: boolean;
+  onToggleCamera?: () => void;
+  showCameraToggle?: boolean;
 }
 
-const Header = ({ onToggleMute, isMuted }: HeaderProps) => {
+const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = false }: HeaderProps) => {
   return (
     <header className="flex-shrink-0 flex justify-between items-center bg-card/50 backdrop-blur-lg rounded-2xl px-4 sm:px-6 py-3 border border-border">
       <div className="flex items-center gap-3">
@@ -20,6 +22,16 @@ const Header = ({ onToggleMute, isMuted }: HeaderProps) => {
         >
           <History className="w-5 h-5" />
         </button>
+        {showCameraToggle && onToggleCamera && (
+          <button
+            id="camera-toggle-button"
+            className="bg-secondary hover:bg-accent text-secondary-foreground p-2 rounded-full transition-transform transform hover:scale-110"
+            title="Flip Camera"
+            onClick={onToggleCamera}
+          >
+            <RotateCcw className="w-5 h-5" />
+          </button>
+        )}
         <button
           id="mute-button-header"
           className="bg-secondary hover:bg-accent text-secondary-foreground p-2 rounded-full transition-transform transform hover:scale-110"

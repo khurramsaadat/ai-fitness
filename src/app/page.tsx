@@ -271,6 +271,7 @@ export default function Home() {
   const [poseMetrics, setPoseMetrics] = useState({ poseConfidence: 0, formScore: 0, lowConfidenceNotice: false });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentOrientation, setCurrentOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user'); // 'user' = front, 'environment' = back
 
   const availableExercises: Exercise[] = [
     { name: "Squats", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/2261477/pexels-photo-2261477.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
@@ -300,6 +301,13 @@ export default function Home() {
     lowConfidenceFrameCount.current = 0;
     lastPoseTimestamp.current = null;
     setPoseMetrics({ poseConfidence: 0, formScore: 0, lowConfidenceNotice: false });
+  }, []);
+
+  // Mobile device detection
+  const isMobileDevice = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+           window.innerWidth <= 768;
   }, []);
 
   const speak = useCallback((text: string) => {
@@ -902,7 +910,8 @@ export default function Home() {
       video: {
         width: { ideal: 4096 },
         height: { ideal: 2160 },
-        aspectRatio: orientation === 'landscape' ? 16 / 9 : 9 / 16
+        aspectRatio: orientation === 'landscape' ? 16 / 9 : 9 / 16,
+        facingMode: cameraFacing
       },
       audio: false
     };
@@ -920,7 +929,7 @@ export default function Home() {
       setStartScreenError('Could not access camera. Please check permissions and try again.');
       return null;
     }
-  }, []);
+  }, [cameraFacing]);
 
   const endWorkout = useCallback(async () => {
     if (rafId.current) cancelAnimationFrame(rafId.current);
@@ -929,8 +938,10 @@ export default function Home() {
       videoRef.current.style.display = 'none';
     }
 
-    // Exit fullscreen mode
-    await exitFullscreen();
+    // Exit fullscreen mode only if we're on mobile
+    if (isMobileDevice()) {
+      await exitFullscreen();
+    }
 
     resetPoseState();
     setShowLoadingSpinner(true);
@@ -955,16 +966,16 @@ export default function Home() {
     ];
 
     setTimeout(() => {
-      setShowLoadingSpinner(false);
-      setShowStartScreen(true);
-      setWorkoutState(prevState => ({ ...prevState, isStarted: false }));
+    setShowLoadingSpinner(false);
+    setShowStartScreen(true);
+    setWorkoutState(prevState => ({ ...prevState, isStarted: false }));
       setWorkoutSummary({
         summary: summaries[Math.floor(Math.random() * summaries.length)],
         suggestion: suggestions[Math.floor(Math.random() * suggestions.length)]
       });
-      setSelectedExercises([]);
-      setWorkoutPlan([]);
-      setCompletedExercises([]);
+    setSelectedExercises([]);
+    setWorkoutPlan([]);
+    setCompletedExercises([]);
     }, 1500);
   }, [completedExercises, resetPoseState, exitFullscreen]);
 
@@ -1029,6 +1040,25 @@ export default function Home() {
     if (!isMuted.current) speak("Audio on.");
   }, [speak]);
 
+  const toggleCamera = useCallback(async () => {
+    const newFacing = cameraFacing === 'user' ? 'environment' : 'user';
+    setCameraFacing(newFacing);
+    
+    // If workout is active, restart the camera with new facing mode
+    if (workoutState.isStarted && videoRef.current) {
+      // Stop current stream
+      if (videoRef.current.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+      }
+      
+      // Setup camera with new facing mode
+      const currentExercise = workoutPlan[workoutState.currentExerciseIndex];
+      if (currentExercise) {
+        await setupCamera(currentExercise.orientation);
+      }
+    }
+  }, [cameraFacing, workoutState.isStarted, workoutState.currentExerciseIndex, workoutPlan, setupCamera]);
+
   const handleStartWorkout = useCallback(async () => {
     console.log("handleStartWorkout: Starting workout.");
     if (selectedExercises.length === 0) {
@@ -1037,11 +1067,17 @@ export default function Home() {
     }
 
     setShowLoadingSpinner(true);
-    setLoadingText('Entering fullscreen mode...');
+    const isMobile = isMobileDevice();
+    
+    if (isMobile) {
+      setLoadingText('Entering fullscreen mode...');
+      setStartScreenError(null);
+      // Enter fullscreen mode only on mobile
+      await enterFullscreen();
+    } else {
+    setLoadingText('Setting up camera...');
     setStartScreenError(null);
-
-    // Enter fullscreen mode for mobile workout experience
-    await enterFullscreen();
+    }
 
     setLoadingText('Setting up camera and orientation...');
     resetPoseState();
@@ -1093,6 +1129,17 @@ export default function Home() {
   }, [selectedExercises, setupCamera, speak, resetPoseState, enterFullscreen, exitFullscreen, setScreenOrientation]);
 
   const toggleExerciseSelection = useCallback((exercise: Exercise) => {
+    const isMobile = isMobileDevice();
+    
+    if (isMobile) {
+      // On mobile, selecting a card starts the workout immediately
+      setSelectedExercises([exercise]);
+      // Start workout immediately
+      setTimeout(() => {
+        handleStartWorkout();
+      }, 100); // Small delay to allow state update
+    } else {
+      // On desktop, use the old toggle behavior
     setSelectedExercises(prevSelected => {
       const index = prevSelected.findIndex(ex => ex.name === exercise.name);
       if (index > -1) {
@@ -1101,7 +1148,8 @@ export default function Home() {
         return [...prevSelected, exercise];
       }
     });
-  }, []);
+    }
+  }, [isMobileDevice, handleStartWorkout]);
 
   useEffect(() => {
     const initModel = async () => {
@@ -1197,36 +1245,43 @@ export default function Home() {
     };
   }, [workoutState.isStarted, workoutState.isPaused, poseDetectionFrame]);
 
+  const isMobile = isMobileDevice();
+
   return (
     <div className={`bg-background text-foreground ${
-      isFullscreen && workoutState.isStarted 
+      isFullscreen && workoutState.isStarted && isMobile
         ? 'fixed inset-0 z-50 overflow-hidden' 
-        : 'flex items-center justify-center min-h-screen'
+        : 'h-screen flex flex-col overflow-hidden'
     }`}>
       <div className={`w-full ${
-        isFullscreen && workoutState.isStarted 
+        isFullscreen && workoutState.isStarted && isMobile
           ? 'h-full flex flex-col' 
-          : 'max-w-screen-2xl mx-auto flex flex-col p-2 sm:p-4 md:p-6 gap-4'
+          : 'max-w-screen-2xl mx-auto flex flex-col flex-1 p-2 sm:p-4 md:p-6 gap-4'
       }`}>
-        {/* Header - hidden in fullscreen workout mode on mobile */}
+        {/* Header - hidden in fullscreen workout mode on mobile only */}
         <div className={`${
-          isFullscreen && workoutState.isStarted 
+          isFullscreen && workoutState.isStarted && isMobile
             ? 'hidden sm:block absolute top-2 left-2 right-2 z-10' 
             : ''
         }`}>
-          <Header onToggleMute={toggleMute} isMuted={isMuted.current} />
+        <Header 
+          onToggleMute={toggleMute} 
+          isMuted={isMuted.current}
+          onToggleCamera={toggleCamera}
+          showCameraToggle={isMobile && workoutState.isStarted}
+        />
         </div>
 
         <main className={`${
-          isFullscreen && workoutState.isStarted 
+          isFullscreen && workoutState.isStarted && isMobile
             ? 'flex-1 flex flex-col relative' 
-            : 'flex flex-col lg:flex-row gap-6'
+            : 'flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden'
         }`}>
           {/* Camera Feed and Exercise Selection */}
           <div className={`relative ${
-            isFullscreen && workoutState.isStarted 
+            isFullscreen && workoutState.isStarted && isMobile
               ? 'flex-1 w-full h-full' 
-              : 'flex-grow'
+              : 'flex-1 min-h-0'
           }`}>
             <CameraFeed
               videoRef={videoRef}
@@ -1254,14 +1309,14 @@ export default function Home() {
 
           {/* Feedback Panel and Controls */}
           <div className={`${
-            isFullscreen && workoutState.isStarted 
+            isFullscreen && workoutState.isStarted && isMobile
               ? 'absolute bottom-0 left-0 right-0 z-10 bg-background/90 backdrop-blur-sm border-t p-2' 
-              : 'hidden lg:flex lg:w-80 flex-shrink-0 flex-col gap-4'
+              : 'flex lg:w-80 flex-shrink-0 flex-col gap-4 min-h-0'
           }`}>
-            {/* Mobile workout controls - always visible during workout */}
+            {/* Mobile workout controls - visible during workout on mobile */}
             {workoutState.isStarted && (
               <div className={`${
-                isFullscreen 
+                isFullscreen && isMobile
                   ? 'flex flex-row justify-between items-center gap-2 mb-2' 
                   : 'hidden'
               }`}>
@@ -1298,20 +1353,20 @@ export default function Home() {
 
             {/* Desktop feedback panel and controls */}
             <div className={`${
-              isFullscreen ? 'hidden' : 'flex flex-col gap-4'
+              isFullscreen && isMobile ? 'hidden' : 'flex flex-col gap-4'
             }`}>
-              <FeedbackPanel
-                workoutState={workoutState}
-                currentExercise={workoutPlan[workoutState.currentExerciseIndex]}
-                nextExercise={workoutPlan[workoutState.currentExerciseIndex + 1]}
-              />
-              <WorkoutControls
-                onPause={pauseWorkout}
-                onResume={resumeWorkout}
-                onSkip={goToNextExercise}
-                onReset={resetWorkout}
-                workoutState={workoutState}
-              />
+            <FeedbackPanel
+              workoutState={workoutState}
+              currentExercise={workoutPlan[workoutState.currentExerciseIndex]}
+              nextExercise={workoutPlan[workoutState.currentExerciseIndex + 1]}
+            />
+            <WorkoutControls
+              onPause={pauseWorkout}
+              onResume={resumeWorkout}
+              onSkip={goToNextExercise}
+              onReset={resetWorkout}
+              workoutState={workoutState}
+            />
             </div>
           </div>
         </main>

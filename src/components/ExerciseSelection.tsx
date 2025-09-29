@@ -29,17 +29,35 @@ const ExerciseSelection = ({
   workoutSummary,
   workoutComplete,
 }: ExerciseSelectionProps) => {
+  const isMobile = typeof window !== 'undefined' && 
+    (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+     window.innerWidth <= 768);
+
   return (
     <div
       id="start-screen"
-      className="absolute inset-0 flex flex-col items-center justify-start bg-background/95 z-20 p-4 sm:p-6 text-center overflow-y-auto"
+      className={`absolute inset-0 flex flex-col bg-background/95 z-20 text-center overflow-y-auto ${
+        isMobile 
+          ? 'justify-start p-2 pt-4' 
+          : 'items-center justify-start p-4 sm:p-6'
+      }`}
     >
-      <div className="w-full max-w-7xl mx-auto py-8">
-        <h1 id="start-screen-title" className="text-4xl sm:text-5xl font-bold mb-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+      <div className={`w-full mx-auto ${
+        isMobile 
+          ? 'flex-1 flex flex-col py-2' 
+          : 'max-w-7xl py-8'
+      }`}>
+        <h1 id="start-screen-title" className={`font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent ${
+          isMobile ? 'text-2xl mb-2' : 'text-4xl sm:text-5xl mb-3'
+        }`}>
           {workoutComplete ? "🎉 Workout Complete!" : "💪 Welcome Back!"}
         </h1>
-        <p id="summary-text" className="text-muted-foreground mb-8 max-w-3xl mx-auto text-base sm:text-lg leading-relaxed">
-          {workoutSummary?.summary || "Choose your exercises and let's get moving! Select the workouts you want to focus on today."}
+        <p id="summary-text" className={`text-muted-foreground mx-auto leading-relaxed ${
+          isMobile 
+            ? 'text-sm mb-4 max-w-sm' 
+            : 'mb-8 max-w-3xl text-base sm:text-lg'
+        }`}>
+          {workoutSummary?.summary || (isMobile ? "Tap an exercise to start!" : "Choose your exercises and let's get moving! Select the workouts you want to focus on today.")}
         </p>
       {startScreenError && (
         <p id="start-screen-error" className="text-destructive mb-4">
@@ -63,7 +81,11 @@ const ExerciseSelection = ({
 
       <div
         id="exercise-selection"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-6xl mb-8"
+        className={`grid w-full ${
+          isMobile 
+            ? 'grid-cols-2 gap-3 flex-1 max-w-none mb-4' 
+            : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mb-8'
+        }`}
       >
         {availableExercises.map((exercise) => {
           const isSelected = selectedExercises.some((e) => e.name === exercise.name);
@@ -75,11 +97,13 @@ const ExerciseSelection = ({
                   ? 'border-primary ring-4 ring-primary/30 shadow-2xl scale-105'
                   : 'border-border hover:border-primary/50 hover:shadow-xl hover:scale-102'
               }`}
-              title={`Select ${exercise.name} - ${exercise.target} ${exercise.type === 'reps' ? 'reps' : 'seconds'}`}
+              title={isMobile ? `Start ${exercise.name}` : `Select ${exercise.name} - ${exercise.target} ${exercise.type === 'reps' ? 'reps' : 'seconds'}`}
               onClick={() => onToggleExerciseSelection(exercise)}
             >
               {/* Exercise Image */}
-              <div className="relative aspect-[4/3] w-full">
+              <div className={`relative w-full ${
+                isMobile ? 'aspect-[3/4]' : 'aspect-[4/3]'
+              }`}>
                 <Image
                   src={exercise.imageUrl}
                   alt={`${exercise.name} exercise demonstration`}
@@ -102,29 +126,37 @@ const ExerciseSelection = ({
                 )}
                 
                 {/* Exercise Content Overlay */}
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <h3 className="text-white text-xl font-bold mb-2 drop-shadow-lg">
+                <div className={`absolute bottom-0 left-0 right-0 ${
+                  isMobile ? 'p-2' : 'p-4'
+                }`}>
+                  <h3 className={`text-white font-bold drop-shadow-lg ${
+                    isMobile ? 'text-sm mb-1' : 'text-xl mb-2'
+                  }`}>
                     {exercise.name}
                   </h3>
                   
-                  <div className="flex items-center justify-between text-white/90 text-sm">
+                  <div className={`flex items-center justify-between text-white/90 ${
+                    isMobile ? 'text-xs' : 'text-sm'
+                  }`}>
                     <div className="flex items-center gap-1">
                       {exercise.type === 'reps' ? (
-                        <RotateCcw className="w-4 h-4" />
+                        <RotateCcw className={isMobile ? 'w-3 h-3' : 'w-4 h-4'} />
                       ) : (
-                        <Clock className="w-4 h-4" />
+                        <Clock className={isMobile ? 'w-3 h-3' : 'w-4 h-4'} />
                       )}
                       <span className="font-medium">
                         {exercise.target} {exercise.type === 'reps' ? 'reps' : 'sec'}
                       </span>
                     </div>
                     
-                    <div className="flex items-center gap-1">
-                      <Target className="w-4 h-4" />
-                      <span className="capitalize font-medium">
-                        {exercise.type}
-                      </span>
-                    </div>
+                    {!isMobile && (
+                      <div className="flex items-center gap-1">
+                        <Target className="w-4 h-4" />
+                        <span className="capitalize font-medium">
+                          {exercise.type}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
