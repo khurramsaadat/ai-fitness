@@ -120,3 +120,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Custom hover scale utilities */
+  .hover\:scale-102:hover {
+    transform: scale(1.02);
+  }
+  
+  /* Custom border width */
+  .border-3 {
+    border-width: 3px;
+  }
+  
+  /* Improved backdrop blur for better mobile performance */
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+}

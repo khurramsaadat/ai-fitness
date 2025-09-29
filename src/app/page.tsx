@@ -291,10 +291,12 @@ export default function Home() {
   const [showStartScreen, setShowStartScreen] = useState(true);
   const [workoutSummary, setWorkoutSummary] = useState<{ summary: string; suggestion: string } | null>(null);
   const [poseMetrics, setPoseMetrics] = useState({ poseConfidence: 0, formScore: 0, lowConfidenceNotice: false });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentOrientation, setCurrentOrientation] = useState<'portrait' | 'landscape'>('portrait');
 
   const availableExercises: Exercise[] = [
     { name: "Squats", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/2261477/pexels-photo-2261477.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
-    { name: "Push-ups", type: 'reps', target: 10, imageUrl: "https://images.pexels.com/photos/4162484/pexels-photo-4162484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'landscape' },
+    { name: "Push-ups", type: 'reps', target: 10, imageUrl: "https://images.pexels.com/photos/4162484/pexels-photo-4162484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
     { name: "Bicep Curls", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/1431282/pexels-photo-1431282.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
     { name: "Jumping Jacks", type: 'reps', target: 20, imageUrl: "https://images.pexels.com/photos/7031706/pexels-photo-7031706.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
     { name: "Lunges", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/3112004/pexels-photo-3112004.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
@@ -325,9 +327,75 @@ export default function Home() {
   const speak = useCallback((text: string) => {
     if (isMuted.current || !('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.2;
+    utterance.rate = 1.0; // Slower, more natural pace
+    utterance.pitch = 1.2; // Slightly higher pitch for female voice
+    
+    // Try to get a female voice
+    const voices = window.speechSynthesis.getVoices();
+    const femaleVoice = voices.find(voice => 
+      voice.name.toLowerCase().includes('female') || 
+      voice.name.toLowerCase().includes('woman') ||
+      voice.name.toLowerCase().includes('zira') ||
+      voice.name.toLowerCase().includes('hazel') ||
+      voice.name.toLowerCase().includes('samantha')
+    );
+    
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+    
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
+  }, []);
+
+  // Mobile fullscreen and orientation control
+  const enterFullscreen = useCallback(async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      }
+    } catch (error) {
+      console.log('Fullscreen not supported or failed:', error);
+    }
+  }, []);
+
+  const exitFullscreen = useCallback(async () => {
+    try {
+      if (document.exitFullscreen && document.fullscreenElement) {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (error) {
+      console.log('Exit fullscreen failed:', error);
+    }
+  }, []);
+
+  const setScreenOrientation = useCallback(async (orientation: 'portrait' | 'landscape') => {
+    try {
+      if ('screen' in window && 'orientation' in window.screen && 'lock' in window.screen.orientation) {
+        if (orientation === 'landscape') {
+          await (window.screen.orientation as any).lock('landscape-primary');
+        } else {
+          await (window.screen.orientation as any).lock('portrait-primary');
+        }
+        setCurrentOrientation(orientation);
+        console.log(`Screen orientation set to: ${orientation}`);
+      }
+    } catch (error) {
+      console.log('Screen orientation lock not supported or failed:', error);
+      setCurrentOrientation(orientation);
+    }
+  }, []);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   const calculateAngle = (p1: any, p2: any, p3: any) => {
@@ -371,7 +439,7 @@ export default function Home() {
 
   // Using the beautiful drawSkeleton function defined above
 
-  const goToNextExercise = useCallback(() => {
+  const goToNextExercise = useCallback(async () => {
     setWorkoutState(prevState => {
       const currentExercise = workoutPlanRef.current[prevState.currentExerciseIndex];
       const newCompletedExercises = [
@@ -391,6 +459,13 @@ export default function Home() {
       }
 
       const newExercise = workoutPlanRef.current[nextIndex];
+      
+      // Change orientation if needed for the new exercise
+      if (newExercise.orientation !== currentExercise.orientation) {
+        setScreenOrientation(newExercise.orientation);
+        console.log(`Switching orientation to ${newExercise.orientation} for ${newExercise.name}`);
+      }
+      
       const feedback = `Next up: ${newExercise.name}. Get ready!`;
       speak(feedback);
       return {
@@ -404,7 +479,7 @@ export default function Home() {
         feedbackType: 'info'
       };
     });
-  }, [completedExercises, speak]);
+  }, [completedExercises, speak, setScreenOrientation]);
 
   const exerciseProcessors = useRef<
     Record<string, (keypoints: KeypointDictionary, prevState: WorkoutState) => Partial<WorkoutState> | null>
@@ -525,7 +600,7 @@ export default function Home() {
       if (!shoulder || !hip || !ankle) return null;
       const bodyAngle = calculateAngle(shoulder, hip, ankle);
       const formScore = clamp(100 - Math.abs(180 - bodyAngle), 0, 100);
-      const now = Date.now();
+          const now = Date.now();
       let holdStartTime = prevState.holdStartTime;
       let nextHoldTime = prevState.holdTime;
       if (formScore > 80) {
@@ -618,9 +693,9 @@ export default function Home() {
       Math.round(validKeypoints.reduce((sum: number, kp: any) => sum + kp.score, 0) / validKeypoints.length * 100) : 0;
     
     // Draw pose visualization
-    drawKeypoints(keypoints, ctx);
-    drawSkeleton(keypoints, ctx);
-    
+        drawKeypoints(keypoints, ctx);
+        drawSkeleton(keypoints, ctx);
+
     lowConfidenceFrameCount.current = 0;
 
     setWorkoutState(prevState => {
@@ -686,31 +761,121 @@ export default function Home() {
             }
           }
         } else if (currentExercise.name === 'Push-ups') {
-          // Basic push-up detection using shoulder and elbow positions
+          // Improved push-up detection using shoulder-to-wrist angle
           const leftShoulder = keypoints[5];
           const rightShoulder = keypoints[6];
           const leftElbow = keypoints[7];
           const rightElbow = keypoints[8];
+          const leftWrist = keypoints[9];
+          const rightWrist = keypoints[10];
           
-          if (leftShoulder && rightShoulder && leftElbow && rightElbow &&
-              leftShoulder.score > 0.3 && rightShoulder.score > 0.3 &&
-              leftElbow.score > 0.3 && rightElbow.score > 0.3) {
+          if (leftShoulder && leftElbow && leftWrist &&
+              leftShoulder.score > 0.3 && leftElbow.score > 0.3 && leftWrist.score > 0.3) {
             
-            const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-            const elbowY = (leftElbow.y + rightElbow.y) / 2;
-            const armBend = Math.abs(shoulderY - elbowY);
+            // Calculate elbow angle for better push-up detection
+            const leftElbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
             
-            formScore = armBend > 30 ? 85 : 70;
+            // Form score based on elbow angle
+            if (leftElbowAngle > 160) {
+              formScore = 95; // Fully extended
+            } else if (leftElbowAngle > 140) {
+              formScore = 85; // Good extension
+            } else if (leftElbowAngle < 90) {
+              formScore = 90; // Good descent
+            } else {
+              formScore = 75; // Moderate form
+            }
             
-            if (armBend > 40 && stage !== 'down') {
-              stage = 'down';
-              feedback = 'Going down...';
+            // Rep counting logic based on elbow angle
+            if (leftElbowAngle > 160 && stage !== 'up') {
+              stage = 'up';
+              feedback = 'Arms extended!';
               feedbackType = 'info';
             }
-            if (armBend < 20 && stage === 'down') {
+            if (leftElbowAngle < 90 && stage === 'up') {
               repCount++;
+              stage = 'down';
+              feedback = `Perfect push-up! Rep ${repCount}`;
+              feedbackType = 'good';
+            }
+          }
+        } else if (currentExercise.name === 'Jumping Jacks') {
+          // Jumping Jacks detection using arm and leg positions
+          const leftWrist = keypoints[9];
+          const rightWrist = keypoints[10];
+          const leftAnkle = keypoints[15];
+          const rightAnkle = keypoints[16];
+          const nose = keypoints[0];
+          
+          if (leftWrist && rightWrist && leftAnkle && rightAnkle && nose &&
+              leftWrist.score > 0.3 && rightWrist.score > 0.3 && 
+              leftAnkle.score > 0.3 && rightAnkle.score > 0.3 && nose.score > 0.3) {
+            
+            // Calculate arm spread (wrists distance from center)
+            const armSpread = Math.abs(leftWrist.x - rightWrist.x);
+            // Calculate leg spread (ankles distance from center)
+            const legSpread = Math.abs(leftAnkle.x - rightAnkle.x);
+            // Calculate arm height (average wrist height relative to nose)
+            const avgWristY = (leftWrist.y + rightWrist.y) / 2;
+            const armHeight = nose.y - avgWristY; // Positive when arms are up
+            
+            // Form score based on coordination
+            const spreadScore = Math.min(armSpread / 200, 1) * 50 + Math.min(legSpread / 150, 1) * 50;
+            formScore = Math.round(Math.max(spreadScore, 60));
+            
+            // Rep counting: arms up + legs apart = "up" position
+            const isJumpingPosition = armHeight > 50 && armSpread > 100 && legSpread > 80;
+            const isRestPosition = armHeight < 20 && armSpread < 60 && legSpread < 40;
+            
+            if (isJumpingPosition && stage !== 'up') {
               stage = 'up';
-              feedback = `Great push-up! Rep ${repCount}`;
+              feedback = 'Jump up!';
+              feedbackType = 'info';
+            }
+            if (isRestPosition && stage === 'up') {
+              repCount++;
+              stage = 'down';
+              feedback = `Great jump! Rep ${repCount}`;
+              feedbackType = 'good';
+            }
+          }
+        } else if (currentExercise.name === 'Squats') {
+          // Squats detection using hip and knee angles
+          const leftHip = keypoints[11];
+          const leftKnee = keypoints[13];
+          const leftAnkle = keypoints[15];
+          const leftShoulder = keypoints[5];
+          
+          if (leftHip && leftKnee && leftAnkle && leftShoulder &&
+              leftHip.score > 0.3 && leftKnee.score > 0.3 && 
+              leftAnkle.score > 0.3 && leftShoulder.score > 0.3) {
+            
+            // Calculate knee angle for squat depth
+            const kneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
+            // Calculate hip height for movement detection
+            const hipHeight = leftShoulder.y - leftHip.y;
+            
+            // Form score based on squat depth and posture
+            if (kneeAngle < 90) {
+              formScore = 95; // Deep squat
+            } else if (kneeAngle < 120) {
+              formScore = 85; // Good depth
+            } else if (kneeAngle < 150) {
+              formScore = 75; // Moderate depth
+            } else {
+              formScore = 65; // Shallow squat
+            }
+            
+            // Rep counting based on knee angle and hip movement
+            if (kneeAngle > 160 && stage !== 'up') {
+              stage = 'up';
+              feedback = 'Standing tall!';
+              feedbackType = 'info';
+            }
+            if (kneeAngle < 120 && stage === 'up') {
+              repCount++;
+              stage = 'down';
+              feedback = `Excellent squat! Rep ${repCount}`;
               feedbackType = 'good';
             }
           }
@@ -786,6 +951,9 @@ export default function Home() {
       videoRef.current.style.display = 'none';
     }
 
+    // Exit fullscreen mode
+    await exitFullscreen();
+
     resetPoseState();
     setShowLoadingSpinner(true);
     setLoadingText('✨ Great workout! Preparing your summary...');
@@ -803,7 +971,7 @@ export default function Home() {
     const suggestions = [
       "Try adding 2-3 more reps to your next session to increase the challenge!",
       "Consider holding your plank position 10 seconds longer next time.",
-      "Challenge yourself with jump squats or diamond push-ups for extra intensity.",
+      "Challenge yourself with jump squets or diamond push-ups for extra intensity.",
       "Add a 30-second rest between exercises to maintain perfect form throughout.",
       "Try slowing down your movements to focus on muscle engagement and control."
     ];
@@ -820,7 +988,7 @@ export default function Home() {
       setWorkoutPlan([]);
       setCompletedExercises([]);
     }, 1500);
-  }, [completedExercises, resetPoseState]);
+  }, [completedExercises, resetPoseState, exitFullscreen]);
 
   const resetWorkout = useCallback(() => {
     if (rafId.current) cancelAnimationFrame(rafId.current);
@@ -891,18 +1059,27 @@ export default function Home() {
     }
 
     setShowLoadingSpinner(true);
-    setLoadingText('Setting up camera...');
+    setLoadingText('Entering fullscreen mode...');
     setStartScreenError(null);
 
+    // Enter fullscreen mode for mobile workout experience
+    await enterFullscreen();
+
+    setLoadingText('Setting up camera and orientation...');
     resetPoseState();
 
     const firstExerciseOrientation = selectedExercises[0].orientation;
     console.log("handleStartWorkout: Setting up camera with orientation:", firstExerciseOrientation);
+    
+    // Set screen orientation based on exercise
+    await setScreenOrientation(firstExerciseOrientation);
+    
     const camera = await setupCamera(firstExerciseOrientation);
 
     if (!camera) {
       console.error("handleStartWorkout: Camera setup failed.");
       setShowLoadingSpinner(false);
+      await exitFullscreen(); // Exit fullscreen if camera fails
       return;
     }
     console.log("handleStartWorkout: Camera setup successful.");
@@ -935,7 +1112,7 @@ export default function Home() {
     }));
     speak(`Let's start with ${selectedExercises[0].name}`);
     console.log("handleStartWorkout: Workout started with exercise:", selectedExercises[0].name);
-  }, [selectedExercises, setupCamera, speak, resetPoseState]);
+  }, [selectedExercises, setupCamera, speak, resetPoseState, enterFullscreen, exitFullscreen, setScreenOrientation]);
 
   const toggleExerciseSelection = useCallback((exercise: Exercise) => {
     setSelectedExercises(prevSelected => {
@@ -952,25 +1129,46 @@ export default function Home() {
     const initModel = async () => {
       console.log("initModel: Starting pose detection model initialization.");
       
-      // Wait for CDN scripts to load
+      // Enhanced script loading with better error handling
       let attempts = 0;
-      while (attempts < 50) {
-        if (typeof window !== 'undefined' && 
-            (window as any).tf && 
-            (window as any).poseDetection) {
-          break;
+      const maxAttempts = 100; // Increased attempts
+      
+      while (attempts < maxAttempts) {
+        if (typeof window !== 'undefined') {
+          // Check if scripts are loaded and ready
+          const tfReady = (window as any).tf && typeof (window as any).tf.ready === 'function';
+          const poseDetectionReady = (window as any).poseDetection && (window as any).poseDetection.SupportedModels;
+          
+          if (tfReady && poseDetectionReady) {
+            try {
+              // Wait for TensorFlow to be fully ready
+              await (window as any).tf.ready();
+              console.log("initModel: TensorFlow.js is ready");
+              break;
+            } catch (error) {
+              console.warn("initModel: TensorFlow ready failed, retrying...", error);
+            }
+          }
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        await new Promise(resolve => setTimeout(resolve, 200)); // Longer wait between checks
         attempts++;
+        
+        // Update loading text with progress
+        if (attempts % 10 === 0) {
+          setLoadingText(`Loading AI model... (${Math.round(attempts/maxAttempts*100)}%)`);
+        }
       }
       
       if (!(window as any).tf || !(window as any).poseDetection) {
-        console.error("initModel: TensorFlow.js or pose-detection not loaded from CDN");
-        setLoadingText("Failed to load AI model. Please refresh.");
+        console.error("initModel: TensorFlow.js or pose-detection not loaded from CDN after", maxAttempts, "attempts");
+        setLoadingText("Failed to load AI model. Please refresh the page.");
         return;
       }
       
       try {
+        setLoadingText("Creating pose detector...");
+        
         const detectorConfig = {
           modelType: (window as any).poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
           enableSmoothing: true
@@ -982,11 +1180,17 @@ export default function Home() {
         );
         
         console.log("initModel: MoveNet model loaded successfully from CDN.");
+        setLoadingText("AI Coach ready!");
+        
+        // Small delay to show success message
+        setTimeout(() => {
         setShowLoadingSpinner(false);
         console.log("initModel: Loading spinner hidden.");
+        }, 500);
+        
       } catch (error) {
-        console.error("initModel: Error loading model:", error);
-        setLoadingText("Failed to load AI model. Please refresh.");
+        console.error("initModel: Error creating detector:", error);
+        setLoadingText("Failed to initialize AI model. Please refresh.");
       }
     };
     
@@ -1016,11 +1220,36 @@ export default function Home() {
   }, [workoutState.isStarted, workoutState.isPaused, poseDetectionFrame]);
 
   return (
-    <div className="bg-background text-foreground flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-screen-2xl mx-auto flex flex-col p-2 sm:p-4 md:p-6 gap-4">
-        <Header onToggleMute={toggleMute} isMuted={isMuted.current} />
-        <main className="flex flex-col lg:flex-row gap-6">
-          <div className="relative flex-grow">
+    <div className={`bg-background text-foreground ${
+      isFullscreen && workoutState.isStarted 
+        ? 'fixed inset-0 z-50 overflow-hidden' 
+        : 'flex items-center justify-center min-h-screen'
+    }`}>
+      <div className={`w-full ${
+        isFullscreen && workoutState.isStarted 
+          ? 'h-full flex flex-col' 
+          : 'max-w-screen-2xl mx-auto flex flex-col p-2 sm:p-4 md:p-6 gap-4'
+      }`}>
+        {/* Header - hidden in fullscreen workout mode on mobile */}
+        <div className={`${
+          isFullscreen && workoutState.isStarted 
+            ? 'hidden sm:block absolute top-2 left-2 right-2 z-10' 
+            : ''
+        }`}>
+          <Header onToggleMute={toggleMute} isMuted={isMuted.current} />
+        </div>
+
+        <main className={`${
+          isFullscreen && workoutState.isStarted 
+            ? 'flex-1 flex flex-col relative' 
+            : 'flex flex-col lg:flex-row gap-6'
+        }`}>
+          {/* Camera Feed and Exercise Selection */}
+          <div className={`relative ${
+            isFullscreen && workoutState.isStarted 
+              ? 'flex-1 w-full h-full' 
+              : 'flex-grow'
+          }`}>
             <CameraFeed
               videoRef={videoRef}
               canvasRef={canvasRef}
@@ -1044,19 +1273,68 @@ export default function Home() {
               />
             )}
           </div>
-          <div className="hidden lg:flex lg:w-80 flex-shrink-0 flex-col gap-4">
-            <FeedbackPanel
-              workoutState={workoutState}
-              currentExercise={workoutPlan[workoutState.currentExerciseIndex]}
-              nextExercise={workoutPlan[workoutState.currentExerciseIndex + 1]}
-            />
-            <WorkoutControls
-              onPause={pauseWorkout}
-              onResume={resumeWorkout}
-              onSkip={goToNextExercise}
-              onReset={resetWorkout}
-              workoutState={workoutState}
-            />
+
+          {/* Feedback Panel and Controls */}
+          <div className={`${
+            isFullscreen && workoutState.isStarted 
+              ? 'absolute bottom-0 left-0 right-0 z-10 bg-background/90 backdrop-blur-sm border-t p-2' 
+              : 'hidden lg:flex lg:w-80 flex-shrink-0 flex-col gap-4'
+          }`}>
+            {/* Mobile workout controls - always visible during workout */}
+            {workoutState.isStarted && (
+              <div className={`${
+                isFullscreen 
+                  ? 'flex flex-row justify-between items-center gap-2 mb-2' 
+                  : 'hidden'
+              }`}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {workoutPlan[workoutState.currentExerciseIndex]?.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {workoutState.repCount} reps • {Math.floor(workoutState.timeElapsed / 1000)}s
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={workoutState.isPaused ? resumeWorkout : pauseWorkout}
+                    className="p-2 bg-primary text-primary-foreground rounded-full"
+                  >
+                    {workoutState.isPaused ? '▶️' : '⏸️'}
+                  </button>
+                  <button
+                    onClick={goToNextExercise}
+                    className="p-2 bg-secondary text-secondary-foreground rounded-full"
+                  >
+                    ⏭️
+                  </button>
+                  <button
+                    onClick={resetWorkout}
+                    className="p-2 bg-destructive text-destructive-foreground rounded-full"
+                  >
+                    🔄
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Desktop feedback panel and controls */}
+            <div className={`${
+              isFullscreen ? 'hidden' : 'flex flex-col gap-4'
+            }`}>
+              <FeedbackPanel
+                workoutState={workoutState}
+                currentExercise={workoutPlan[workoutState.currentExerciseIndex]}
+                nextExercise={workoutPlan[workoutState.currentExerciseIndex + 1]}
+              />
+              <WorkoutControls
+                onPause={pauseWorkout}
+                onResume={resumeWorkout}
+                onSkip={goToNextExercise}
+                onReset={resetWorkout}
+                workoutState={workoutState}
+              />
+            </div>
           </div>
         </main>
       </div>
