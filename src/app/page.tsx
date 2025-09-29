@@ -6,6 +6,7 @@ import WorkoutControls from '@/components/WorkoutControls';
 import FeedbackPanel from '@/components/FeedbackPanel';
 import CameraFeed from '@/components/CameraFeed';
 import ExerciseSelection from '@/components/ExerciseSelection';
+import ExerciseMenu from '@/components/ExerciseMenu';
 // Using TensorFlow.js and pose-detection from CDN (loaded in layout.tsx)
 // This avoids all npm dependency conflicts
 
@@ -113,9 +114,16 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 
 // Enhanced drawing functions for beautiful pose visualization
 const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, ctx: CanvasRenderingContext2D) => {
+  // Mobile detection for larger keypoints
+  const isMobile = typeof window !== 'undefined' && 
+    (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+     window.innerWidth <= 768);
+  
   keypoints.forEach((keypoint, index) => {
     if (keypoint.score > 0.3) {
-      const size = clamp(keypoint.score * 15, 4, 12);
+      // Larger circles on mobile for better visibility
+      const baseSize = isMobile ? 20 : 15;
+      const size = clamp(keypoint.score * baseSize, isMobile ? 6 : 4, isMobile ? 16 : 12);
       const alpha = clamp(keypoint.score, 0.4, 1);
       
       // Create radial gradient for each keypoint
@@ -139,9 +147,9 @@ const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, 
         gradient.addColorStop(1, `rgba(14, 165, 233, ${alpha * 0.3})`); // Blue edge
       }
       
-      // Draw outer glow
+      // Draw outer glow (larger on mobile)
       ctx.beginPath();
-      ctx.arc(keypoint.x, keypoint.y, size + 2, 0, 2 * Math.PI);
+      ctx.arc(keypoint.x, keypoint.y, size + (isMobile ? 4 : 2), 0, 2 * Math.PI);
       ctx.fillStyle = `rgba(56, 189, 248, ${alpha * 0.2})`;
       ctx.fill();
       
@@ -156,6 +164,13 @@ const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, 
       ctx.arc(keypoint.x, keypoint.y, size * 0.3, 0, 2 * Math.PI);
       ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
       ctx.fill();
+      
+      // Add white border for better visibility (like reference image)
+      ctx.beginPath();
+      ctx.arc(keypoint.x, keypoint.y, size, 0, 2 * Math.PI);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
+      ctx.lineWidth = isMobile ? 2 : 1;
+      ctx.stroke();
     }
   });
 };
@@ -279,6 +294,7 @@ export default function Home() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentOrientation, setCurrentOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user'); // 'user' = front, 'environment' = back
+  const [showExerciseMenu, setShowExerciseMenu] = useState(false);
 
   const availableExercises: Exercise[] = [
     { name: "Squats", type: 'reps', target: 12, imageUrl: "/squats.jpg", orientation: 'portrait' },
@@ -1065,6 +1081,7 @@ export default function Home() {
     if (!isMuted.current) speak("Audio on.");
   }, [speak]);
 
+
   const toggleCamera = useCallback(async () => {
     const newFacing = cameraFacing === 'user' ? 'environment' : 'user';
     setCameraFacing(newFacing);
@@ -1187,6 +1204,23 @@ export default function Home() {
     }
   }, [isMobileDevice, handleStartWorkout]);
 
+  const handleMenuClick = useCallback(() => {
+    setShowExerciseMenu(true);
+  }, []);
+
+  const handleMenuClose = useCallback(() => {
+    setShowExerciseMenu(false);
+  }, []);
+
+  const handleMenuExerciseSelect = useCallback((exercise: Exercise) => {
+    setSelectedExercises([exercise]);
+    setShowExerciseMenu(false);
+    // Start workout immediately after selection
+    setTimeout(() => {
+      handleStartWorkout();
+    }, 100);
+  }, [handleStartWorkout]);
+
   useEffect(() => {
     const initModel = async () => {
       console.log("initModel: Starting pose detection model initialization.");
@@ -1305,6 +1339,7 @@ export default function Home() {
           isMuted={isMuted.current}
           onToggleCamera={toggleCamera}
           showCameraToggle={isMobile && workoutState.isStarted}
+          onMenuClick={handleMenuClick}
         />
         </div>
 
@@ -1333,6 +1368,7 @@ export default function Home() {
               lowConfidenceNotice={poseMetrics.lowConfidenceNotice}
               timeElapsed={workoutState.timeElapsed}
               repCount={workoutState.repCount}
+              exerciseName={workoutPlan[workoutState.currentExerciseIndex]?.name}
             />
             {showStartScreen && (
               <ExerciseSelection
@@ -1414,6 +1450,14 @@ export default function Home() {
           </div>
         </main>
       </div>
+
+      {/* Exercise Menu */}
+      <ExerciseMenu
+        isOpen={showExerciseMenu}
+        onClose={handleMenuClose}
+        exercises={availableExercises}
+        onExerciseSelect={handleMenuExerciseSelect}
+      />
     </div>
   );
 }

@@ -13,6 +13,7 @@ interface CameraFeedProps {
   lowConfidenceNotice: boolean;
   timeElapsed?: number;
   repCount?: number;
+  exerciseName?: string;
 }
 
 const CameraFeed = ({
@@ -26,7 +27,8 @@ const CameraFeed = ({
   formScore,
   lowConfidenceNotice,
   timeElapsed = 0,
-  repCount = 0
+  repCount = 0,
+  exerciseName = ''
 }: CameraFeedProps) => {
   const clampedConfidence = Math.max(0, Math.min(100, Math.round(poseConfidence)));
   const clampedForm = Math.max(0, Math.min(100, Math.round(formScore)));
@@ -53,48 +55,62 @@ const CameraFeed = ({
 
       <div className={`absolute top-4 z-20 pointer-events-none ${
         isMobile 
-          ? 'left-2 right-2 flex flex-wrap gap-2 justify-between' // Mobile: horizontal layout across top
+          ? 'left-2 right-2 flex flex-wrap gap-3 justify-between' // Mobile: horizontal layout across top
           : 'left-4 flex flex-col gap-2' // Desktop: vertical layout on left
       }`}>
-        {/* Time - Mobile only */}
+        {/* Time - Mobile only with MM:SS format */}
         {isMobile && (
-          <div className="bg-transparent text-white px-2 py-1 rounded-lg shadow-lg">
-            <p className="text-xs uppercase tracking-widest text-cyan-200">Time</p>
-            <p className="text-sm font-semibold text-cyan-100">{Math.floor(timeElapsed / 1000)}s</p>
+          <div className="bg-black/80 text-white px-3 py-2 rounded-xl shadow-2xl border border-cyan-400/40">
+            <p className="text-xs uppercase tracking-widest text-cyan-200 mb-1">Time</p>
+            <p className="text-2xl font-bold text-white drop-shadow-lg">
+              {Math.floor(timeElapsed / 60000).toString().padStart(2, '0')}:
+              {Math.floor((timeElapsed % 60000) / 1000).toString().padStart(2, '0')}
+            </p>
           </div>
         )}
         
         {/* Confidence */}
-        <div className={`text-white rounded-lg shadow-lg ${
+        <div className={`text-white rounded-xl shadow-2xl ${
           isMobile 
-            ? 'bg-transparent px-2 py-1' // Transparent on mobile
+            ? 'bg-black/80 px-3 py-2 border border-cyan-400/40' // Dark background on mobile for contrast
             : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm px-4 py-2' // Normal on desktop
         }`}>
-          <p className="text-xs uppercase tracking-widest text-cyan-200">Confidence</p>
-          <p className={`font-semibold text-cyan-100 ${isMobile ? 'text-sm' : 'text-xl'}`}>{clampedConfidence}%</p>
+          <p className="text-xs uppercase tracking-widest text-cyan-200 mb-1">Confidence</p>
+          <p className={`font-bold text-white drop-shadow-lg ${isMobile ? 'text-2xl' : 'text-xl'}`}>{clampedConfidence}%</p>
         </div>
         
         {/* Form */}
-        <div className={`text-white rounded-lg shadow-lg flex items-center gap-2 ${
+        <div className={`text-white rounded-xl shadow-2xl flex items-center gap-2 ${
           isMobile 
-            ? 'bg-transparent px-2 py-1' // Transparent on mobile
+            ? 'bg-black/80 px-3 py-2 border border-cyan-400/40' // Dark background on mobile for contrast
             : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm px-4 py-2' // Normal on desktop
         }`}>
-          <Target className={`text-cyan-300 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
+          <Target className={`text-cyan-300 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
           <div>
-            <p className="text-xs uppercase tracking-widest text-cyan-200">Form</p>
-            <p className={`font-semibold text-cyan-100 ${isMobile ? 'text-sm' : 'text-lg'}`}>{clampedForm}%</p>
+            <p className="text-xs uppercase tracking-widest text-cyan-200 mb-1">Form</p>
+            <p className={`font-bold text-white drop-shadow-lg ${isMobile ? 'text-2xl' : 'text-lg'}`}>{clampedForm}%</p>
           </div>
         </div>
         
         {/* Reps - Mobile only */}
         {isMobile && (
-          <div className="bg-transparent text-white px-2 py-1 rounded-lg shadow-lg">
-            <p className="text-xs uppercase tracking-widest text-cyan-200">Reps</p>
-            <p className="text-sm font-semibold text-cyan-100">{repCount}</p>
+          <div className="bg-black/80 text-white px-3 py-2 rounded-xl shadow-2xl border border-cyan-400/40">
+            <p className="text-xs uppercase tracking-widest text-cyan-200 mb-1">Reps</p>
+            <p className="text-2xl font-bold text-white drop-shadow-lg">{repCount}</p>
           </div>
         )}
       </div>
+
+      {/* Exercise Name - Mobile bottom overlay */}
+      {isMobile && exerciseName && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 pointer-events-none">
+          <div className="bg-black/90 text-white px-6 py-3 rounded-2xl shadow-2xl border border-cyan-400/40">
+            <p className="text-2xl font-bold text-white drop-shadow-lg text-center">
+              {exerciseName}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div
         id="detection-overlay"

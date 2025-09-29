@@ -5,9 +5,10 @@ interface HeaderProps {
   isMuted: boolean;
   onToggleCamera?: () => void;
   showCameraToggle?: boolean;
+  onMenuClick?: () => void;
 }
 
-const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = false }: HeaderProps) => {
+const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = false, onMenuClick }: HeaderProps) => {
   const isMobile = typeof window !== 'undefined' && 
     (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
      window.innerWidth <= 768);
@@ -18,7 +19,7 @@ const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = fals
         ? 'bg-transparent' // Transparent on mobile during workout
         : 'bg-card/50 backdrop-blur-lg rounded-2xl border border-border' // Normal styling otherwise
     }`}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.location.reload()}>
         <Dumbbell className="text-primary" />
         <h1 className="text-lg sm:text-xl font-bold text-foreground">AI Fitness Coach</h1>
       </div>
@@ -63,13 +64,13 @@ const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = fals
         </button>
         <button
           id="menu-button"
-          className={`lg:hidden p-2 rounded-full transition-transform transform hover:scale-110 ${
+          className={`p-2 rounded-full transition-transform transform hover:scale-110 ${
             isMobile && showCameraToggle 
               ? 'bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm'
               : 'bg-secondary hover:bg-accent text-secondary-foreground'
           }`}
           title="Open Menu"
-          onClick={() => console.log('Menu clicked')}
+          onClick={onMenuClick || (() => console.log('Menu clicked'))}
         >
           <Menu className="w-5 h-5" />
         </button>
