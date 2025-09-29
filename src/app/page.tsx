@@ -41,14 +41,12 @@ interface WorkoutState {
   lowConfidenceNotice: boolean;
 }
 
-type NormalizedKeypoint = {
+type KeypointDictionary = Record<string, {
   name: string;
   x: number;
   y: number;
   score: number;
-};
-
-type KeypointDictionary = Record<string, any>;
+}>;
 
 const KEYPOINT_INDEX_NAMES = [
   'nose',
@@ -106,35 +104,15 @@ const KEYPOINT_NAME_NORMALIZATION: Record<string, string> = {
   rightAnkle: 'rightAnkle'
 };
 
-const CONNECTED_KEYPOINTS: Array<[string, string]> = [
-  ['leftShoulder', 'rightShoulder'],
-  ['leftShoulder', 'leftElbow'],
-  ['rightShoulder', 'rightElbow'],
-  ['leftElbow', 'leftWrist'],
-  ['rightElbow', 'rightWrist'],
-  ['leftShoulder', 'leftHip'],
-  ['rightShoulder', 'rightHip'],
-  ['leftHip', 'rightHip'],
-  ['leftHip', 'leftKnee'],
-  ['rightHip', 'rightKnee'],
-  ['leftKnee', 'leftAnkle'],
-  ['rightKnee', 'rightAnkle']
-];
-
-const KEYPOINT_SCORE_THRESHOLD = 0.35;
-const MIN_CONFIDENT_KEYPOINTS = 8;
-const POSE_CONFIDENCE_THRESHOLD = 0.45; // expressed 0-1 scale
+// Removed unused constants to fix linting warnings
 const LOW_CONFIDENCE_FRAME_THRESHOLD = 5;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-const average = (values: number[]) => {
-  if (values.length === 0) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-};
+// Removed unused average function to fix linting warnings
 
 // Enhanced drawing functions for beautiful pose visualization
-const drawKeypoints = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
+const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, ctx: CanvasRenderingContext2D) => {
   keypoints.forEach((keypoint, index) => {
     if (keypoint.score > 0.3) {
       const size = clamp(keypoint.score * 15, 4, 12);
@@ -182,7 +160,7 @@ const drawKeypoints = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
   });
 };
 
-const drawSkeleton = (keypoints: any[], ctx: CanvasRenderingContext2D) => {
+const drawSkeleton = (keypoints: Array<{x: number; y: number; score: number}>, ctx: CanvasRenderingContext2D) => {
   const adjacentKeypoints = [
     { indices: [0, 1], type: 'head' }, { indices: [0, 2], type: 'head' }, 
     { indices: [1, 3], type: 'head' }, { indices: [2, 4], type: 'head' }, // head
@@ -398,13 +376,13 @@ export default function Home() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  const calculateAngle = (p1: any, p2: any, p3: any) => {
+  const calculateAngle = (p1: {x: number; y: number}, p2: {x: number; y: number}, p3: {x: number; y: number}) => {
     const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
     const angle = Math.abs(radians * 180.0 / Math.PI);
     return angle > 180.0 ? 360 - angle : angle;
   };
 
-  const convertKeypointsToDictionary = (keypoints: any[]): KeypointDictionary => {
+  const convertKeypointsToDictionary = (keypoints: Array<{name?: string; x: number; y: number; score: number}>): KeypointDictionary => {
     const dictionary: KeypointDictionary = {};
     keypoints.forEach((keypoint, index) => {
       const key = KEYPOINT_NAME_NORMALIZATION[keypoint.name ?? KEYPOINT_INDEX_NAMES[index]];
@@ -419,7 +397,7 @@ export default function Home() {
     return dictionary;
   };
 
-  const normalizeKeypoints = (keypoints: any[], video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
+  const normalizeKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     const { videoWidth, videoHeight } = video;
     const { width, height } = canvas;
     const scaleX = width / videoWidth;
@@ -653,7 +631,7 @@ export default function Home() {
     }
 
     // Real pose detection using CDN-loaded libraries
-    let poses: any[] = [];
+    let poses: Array<{keypoints: Array<{x: number; y: number; score: number}>}> = [];
     try {
       if (detector.current) {
         poses = await detector.current.estimatePoses(video);
@@ -688,9 +666,9 @@ export default function Home() {
     const keypoints = pose.keypoints || [];
     
     // Calculate pose confidence from keypoints
-    const validKeypoints = keypoints.filter((kp: any) => kp.score > 0.3);
+    const validKeypoints = keypoints.filter((kp) => kp.score > 0.3);
     const poseConfidence = validKeypoints.length > 8 ? 
-      Math.round(validKeypoints.reduce((sum: number, kp: any) => sum + kp.score, 0) / validKeypoints.length * 100) : 0;
+      Math.round(validKeypoints.reduce((sum: number, kp) => sum + kp.score, 0) / validKeypoints.length * 100) : 0;
     
     // Draw pose visualization
         drawKeypoints(keypoints, ctx);
