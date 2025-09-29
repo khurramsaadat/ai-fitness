@@ -120,10 +120,12 @@ const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, 
      window.innerWidth <= 768);
   
   keypoints.forEach((keypoint, index) => {
-    if (keypoint.score > 0.3) {
-      // Larger circles on mobile for better visibility
-      const baseSize = isMobile ? 20 : 15;
-      const size = clamp(keypoint.score * baseSize, isMobile ? 6 : 4, isMobile ? 16 : 12);
+    // Higher confidence threshold to reduce flickering
+    const minConfidence = isMobile ? 0.5 : 0.3;
+    if (keypoint.score > minConfidence) {
+      // Much larger circles on mobile for better visibility (5x bigger)
+      const baseSize = isMobile ? 75 : 15; // 5x bigger on mobile
+      const size = clamp(keypoint.score * baseSize, isMobile ? 25 : 4, isMobile ? 60 : 12); // 5x bigger range
       const alpha = clamp(keypoint.score, 0.4, 1);
       
       // Create radial gradient for each keypoint
@@ -147,9 +149,9 @@ const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, 
         gradient.addColorStop(1, `rgba(14, 165, 233, ${alpha * 0.3})`); // Blue edge
       }
       
-      // Draw outer glow (larger on mobile)
+      // Draw outer glow (proportionally larger on mobile)
       ctx.beginPath();
-      ctx.arc(keypoint.x, keypoint.y, size + (isMobile ? 4 : 2), 0, 2 * Math.PI);
+      ctx.arc(keypoint.x, keypoint.y, size + (isMobile ? 15 : 2), 0, 2 * Math.PI);
       ctx.fillStyle = `rgba(56, 189, 248, ${alpha * 0.2})`;
       ctx.fill();
       
@@ -169,7 +171,7 @@ const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, 
       ctx.beginPath();
       ctx.arc(keypoint.x, keypoint.y, size, 0, 2 * Math.PI);
       ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
-      ctx.lineWidth = isMobile ? 2 : 1;
+      ctx.lineWidth = isMobile ? 6 : 1; // Proportionally thicker border on mobile
       ctx.stroke();
     }
   });
@@ -196,11 +198,14 @@ const drawSkeleton = (keypoints: Array<{x: number; y: number; score: number}>, c
   adjacentKeypoints.forEach(({ indices: [i, j], type }) => {
     const kp1 = keypoints[i];
     const kp2 = keypoints[j];
-    if (kp1 && kp2 && kp1.score > 0.3 && kp2.score > 0.3) {
-      const alpha = clamp((kp1.score + kp2.score) / 2, 0.4, 1);
-      // Increase line thickness on mobile
-      const baseWidth = isMobile ? 18 : 12; // 50% thicker on mobile
-      const lineWidth = clamp(alpha * baseWidth, isMobile ? 9 : 6, baseWidth);
+    // Higher confidence threshold and better smoothing to reduce flickering
+    const minConfidence = isMobile ? 0.5 : 0.3; // Higher threshold on mobile
+    if (kp1 && kp2 && kp1.score > minConfidence && kp2.score > minConfidence) {
+      const avgScore = (kp1.score + kp2.score) / 2;
+      const alpha = clamp(avgScore, 0.6, 1); // Higher minimum alpha for stability
+      // Much thicker lines on mobile with anti-flicker
+      const baseWidth = isMobile ? 25 : 12; // Much thicker on mobile
+      const lineWidth = clamp(alpha * baseWidth, isMobile ? 15 : 6, baseWidth);
       
       // Create linear gradient for the line
       const gradient = ctx.createLinearGradient(kp1.x, kp1.y, kp2.x, kp2.y);
@@ -231,7 +236,7 @@ const drawSkeleton = (keypoints: Array<{x: number; y: number; score: number}>, c
       ctx.beginPath();
       ctx.moveTo(kp1.x, kp1.y);
       ctx.lineTo(kp2.x, kp2.y);
-      ctx.lineWidth = lineWidth + (isMobile ? 9 : 6); // Thicker glow on mobile
+      ctx.lineWidth = lineWidth + (isMobile ? 15 : 6); // Much thicker glow on mobile
       ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.3})`;
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -340,22 +345,51 @@ export default function Home() {
   const speak = useCallback((text: string) => {
     if (isMuted.current || !('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0; // Slower, more natural pace
-    utterance.pitch = 1.2; // Slightly higher pitch for female voice
     
-    // Try to get a female voice
+    // Get available voices and find the best natural female voice
     const voices = window.speechSynthesis.getVoices();
-    const femaleVoice = voices.find(voice => 
-      voice.name.toLowerCase().includes('female') || 
-      voice.name.toLowerCase().includes('woman') ||
-      voice.name.toLowerCase().includes('zira') ||
-      voice.name.toLowerCase().includes('hazel') ||
-      voice.name.toLowerCase().includes('samantha')
-    );
     
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
+    // Priority order for natural-sounding female voices
+    const preferredVoices = [
+      'Microsoft Aria Online (Natural) - English (United States)',
+      'Google US English Female',
+      'Microsoft Zira - English (United States)', 
+      'Samantha',
+      'Karen',
+      'Susan',
+      'Victoria',
+      'Allison',
+      'Ava',
+      'Serena'
+    ];
+    
+    let selectedVoice = null;
+    
+    // Try to find preferred voices first
+    for (const preferred of preferredVoices) {
+      selectedVoice = voices.find(voice => 
+        voice.name.includes(preferred)
+      );
+      if (selectedVoice) break;
     }
+    
+    // Fallback to any female voice
+    if (!selectedVoice) {
+      selectedVoice = voices.find(voice => 
+        voice.name.toLowerCase().includes('female') || 
+        voice.name.toLowerCase().includes('woman') ||
+        (voice.lang.includes('en') && !voice.name.toLowerCase().includes('male'))
+      );
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+    
+    // Optimize settings for natural speech
+    utterance.rate = 0.85; // Slightly slower for clarity and naturalness
+    utterance.pitch = 1.0; // Natural pitch (not artificially high)
+    utterance.volume = 0.9; // Clear volume
     
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
@@ -1386,36 +1420,21 @@ export default function Home() {
           {/* Mobile Controls Section - Below Camera on Mobile (No Stats) */}
           {isMobile && workoutState.isStarted && isFullscreen && (
             <div className="bg-background/95 backdrop-blur-sm border-t border-border p-4">
-              {/* Exercise Info */}
-              <div className="text-center mb-4">
-                <div className="text-lg font-semibold text-foreground">
-                  {workoutPlan[workoutState.currentExerciseIndex]?.name}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {workoutState.currentExerciseIndex + 1} of {workoutPlan.length}
-                </div>
-              </div>
               
               {/* Mobile Controls */}
-              <div className="flex justify-center gap-3">
+              <div className="flex justify-center gap-4">
                 <button
                   onClick={workoutState.isPaused ? resumeWorkout : pauseWorkout}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full font-medium"
+                  className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full font-medium"
                 >
                   {workoutState.isPaused ? '▶️' : '⏸️'}
                   <span>{workoutState.isPaused ? 'Resume' : 'Pause'}</span>
                 </button>
                 <button
-                  onClick={goToNextExercise}
-                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-full font-medium"
+                  onClick={() => window.location.reload()}
+                  className="flex items-center gap-2 px-6 py-3 bg-secondary text-secondary-foreground rounded-full font-medium"
                 >
-                  ⏭️ <span>Skip</span>
-                </button>
-                <button
-                  onClick={resetWorkout}
-                  className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-full font-medium"
-                >
-                  🔄 <span>Reset</span>
+                  🏠 <span>Home</span>
                 </button>
               </div>
             </div>
@@ -1442,8 +1461,7 @@ export default function Home() {
             <WorkoutControls
               onPause={pauseWorkout}
               onResume={resumeWorkout}
-              onSkip={goToNextExercise}
-              onReset={resetWorkout}
+              onHome={() => window.location.reload()}
               workoutState={workoutState}
             />
             </div>
@@ -1457,6 +1475,7 @@ export default function Home() {
         onClose={handleMenuClose}
         exercises={availableExercises}
         onExerciseSelect={handleMenuExerciseSelect}
+        onHistoryClick={() => console.log('Workout History clicked from menu')}
       />
     </div>
   );

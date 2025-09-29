@@ -1,4 +1,4 @@
-import { Dumbbell, History, Volume2, VolumeX, Menu, RotateCcw } from 'lucide-react';
+import { Dumbbell, Volume2, VolumeOff, Menu, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
   onToggleMute: () => void;
@@ -24,18 +24,6 @@ const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = fals
         <h1 className="text-lg sm:text-xl font-bold text-foreground">AI Fitness Coach</h1>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          id="history-button"
-          className={`p-2 rounded-full transition-transform transform hover:scale-110 ${
-            isMobile && showCameraToggle 
-              ? 'bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm'
-              : 'bg-secondary hover:bg-accent text-secondary-foreground'
-          }`}
-          title="View Workout History"
-          onClick={() => console.log('History clicked')}
-        >
-          <History className="w-5 h-5" />
-        </button>
         {showCameraToggle && onToggleCamera && (
           <button
             id="camera-toggle-button"
@@ -60,7 +48,7 @@ const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = fals
           title="Toggle Audio"
           onClick={onToggleMute}
         >
-          {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          {isMuted ? <VolumeOff className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
         </button>
         <button
           id="menu-button"

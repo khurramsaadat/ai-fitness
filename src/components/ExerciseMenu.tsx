@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, RotateCcw, Clock } from 'lucide-react';
+import { X, RotateCcw, Clock, History } from 'lucide-react';
 import Image from 'next/image';
 
 interface Exercise {
@@ -15,9 +15,10 @@ interface ExerciseMenuProps {
   onClose: () => void;
   exercises: Exercise[];
   onExerciseSelect: (exercise: Exercise) => void;
+  onHistoryClick?: () => void;
 }
 
-const ExerciseMenu = ({ isOpen, onClose, exercises, onExerciseSelect }: ExerciseMenuProps) => {
+const ExerciseMenu = ({ isOpen, onClose, exercises, onExerciseSelect, onHistoryClick }: ExerciseMenuProps) => {
   if (!isOpen) return null;
 
   const handleExerciseClick = (exercise: Exercise) => {
@@ -44,6 +45,31 @@ const ExerciseMenu = ({ isOpen, onClose, exercises, onExerciseSelect }: Exercise
         {/* Exercise List */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-3">
+            {/* Workout History Option */}
+            <div
+              className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-accent/50 cursor-pointer transition-all duration-200 hover:scale-102 bg-primary/5"
+              onClick={() => {
+                onHistoryClick?.();
+                onClose();
+              }}
+            >
+              <div className="w-16 h-16 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <History className="w-8 h-8 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground mb-1">Workout History</h3>
+                <p className="text-sm text-muted-foreground">View your past workouts</p>
+              </div>
+              <div className="text-muted-foreground">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-border my-4"></div>
+
             {exercises.map((exercise) => (
               <div
                 key={exercise.name}
