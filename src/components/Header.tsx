@@ -31,6 +31,7 @@ const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = fals
               : 'bg-secondary hover:bg-accent text-secondary-foreground'
           }`}
           title="View Workout History"
+          onClick={() => console.log('History clicked')}
         >
           <History className="w-5 h-5" />
         </button>
@@ -68,6 +69,7 @@ const Header = ({ onToggleMute, isMuted, onToggleCamera, showCameraToggle = fals
               : 'bg-secondary hover:bg-accent text-secondary-foreground'
           }`}
           title="Open Menu"
+          onClick={() => console.log('Menu clicked')}
         >
           <Menu className="w-5 h-5" />
         </button>

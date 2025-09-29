@@ -11,6 +11,8 @@ interface CameraFeedProps {
   poseConfidence: number;
   formScore: number;
   lowConfidenceNotice: boolean;
+  timeElapsed?: number;
+  repCount?: number;
 }
 
 const CameraFeed = ({
@@ -22,7 +24,9 @@ const CameraFeed = ({
   showDetectionOverlay,
   poseConfidence,
   formScore,
-  lowConfidenceNotice
+  lowConfidenceNotice,
+  timeElapsed = 0,
+  repCount = 0
 }: CameraFeedProps) => {
   const clampedConfidence = Math.max(0, Math.min(100, Math.round(poseConfidence)));
   const clampedForm = Math.max(0, Math.min(100, Math.round(formScore)));
@@ -47,26 +51,49 @@ const CameraFeed = ({
         ref={canvasRef}
       ></canvas>
 
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
-        <div className={`text-white px-4 py-2 rounded-lg shadow-lg ${
+      <div className={`absolute top-4 z-20 pointer-events-none ${
+        isMobile 
+          ? 'left-2 right-2 flex flex-wrap gap-2 justify-between' // Mobile: horizontal layout across top
+          : 'left-4 flex flex-col gap-2' // Desktop: vertical layout on left
+      }`}>
+        {/* Time - Mobile only */}
+        {isMobile && (
+          <div className="bg-transparent text-white px-2 py-1 rounded-lg shadow-lg">
+            <p className="text-xs uppercase tracking-widest text-cyan-200">Time</p>
+            <p className="text-sm font-semibold text-cyan-100">{Math.floor(timeElapsed / 1000)}s</p>
+          </div>
+        )}
+        
+        {/* Confidence */}
+        <div className={`text-white rounded-lg shadow-lg ${
           isMobile 
-            ? 'bg-transparent' // Transparent on mobile
-            : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm' // Normal on desktop
+            ? 'bg-transparent px-2 py-1' // Transparent on mobile
+            : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm px-4 py-2' // Normal on desktop
         }`}>
           <p className="text-xs uppercase tracking-widest text-cyan-200">Confidence</p>
-          <p className="text-xl font-semibold text-cyan-100">{clampedConfidence}%</p>
+          <p className={`font-semibold text-cyan-100 ${isMobile ? 'text-sm' : 'text-xl'}`}>{clampedConfidence}%</p>
         </div>
-        <div className={`text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 ${
+        
+        {/* Form */}
+        <div className={`text-white rounded-lg shadow-lg flex items-center gap-2 ${
           isMobile 
-            ? 'bg-transparent' // Transparent on mobile
-            : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm' // Normal on desktop
+            ? 'bg-transparent px-2 py-1' // Transparent on mobile
+            : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm px-4 py-2' // Normal on desktop
         }`}>
-          <Target className="w-4 h-4 text-cyan-300" />
+          <Target className={`text-cyan-300 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
           <div>
             <p className="text-xs uppercase tracking-widest text-cyan-200">Form</p>
-            <p className="text-lg font-semibold text-cyan-100">{clampedForm}%</p>
+            <p className={`font-semibold text-cyan-100 ${isMobile ? 'text-sm' : 'text-lg'}`}>{clampedForm}%</p>
           </div>
         </div>
+        
+        {/* Reps - Mobile only */}
+        {isMobile && (
+          <div className="bg-transparent text-white px-2 py-1 rounded-lg shadow-lg">
+            <p className="text-xs uppercase tracking-widest text-cyan-200">Reps</p>
+            <p className="text-sm font-semibold text-cyan-100">{repCount}</p>
+          </div>
+        )}
       </div>
 
       <div
@@ -120,3 +147,4 @@ const CameraFeed = ({
 };
 
 export default CameraFeed;
+

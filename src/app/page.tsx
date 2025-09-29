@@ -1331,6 +1331,8 @@ export default function Home() {
               poseConfidence={poseMetrics.poseConfidence}
               formScore={poseMetrics.formScore}
               lowConfidenceNotice={poseMetrics.lowConfidenceNotice}
+              timeElapsed={workoutState.timeElapsed}
+              repCount={workoutState.repCount}
             />
             {showStartScreen && (
               <ExerciseSelection
@@ -1345,29 +1347,9 @@ export default function Home() {
             )}
           </div>
 
-          {/* Mobile Stats Section - Below Camera on Mobile */}
+          {/* Mobile Controls Section - Below Camera on Mobile (No Stats) */}
           {isMobile && workoutState.isStarted && isFullscreen && (
             <div className="bg-background/95 backdrop-blur-sm border-t border-border p-4">
-              {/* Stats Grid - Reorganized: Time, Confidence, Form, Reps */}
-              <div className="grid grid-cols-4 gap-3 mb-4">
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Time</div>
-                  <div className="text-xl font-bold text-primary">{Math.floor(workoutState.timeElapsed / 1000)}s</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Confidence</div>
-                  <div className="text-xl font-bold text-primary">{Math.round(poseMetrics.poseConfidence)}%</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Form</div>
-                  <div className="text-xl font-bold text-primary">{Math.round(poseMetrics.formScore)}%</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Reps</div>
-                  <div className="text-xl font-bold text-primary">{workoutState.repCount}</div>
-                </div>
-              </div>
-              
               {/* Exercise Info */}
               <div className="text-center mb-4">
                 <div className="text-lg font-semibold text-foreground">

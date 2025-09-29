@@ -101,15 +101,15 @@ const ExerciseSelection = ({
               onClick={() => onToggleExerciseSelection(exercise)}
             >
               {/* Exercise Image */}
-              <div className={`relative w-full ${
+              <div className={`relative w-full overflow-hidden ${
                 isMobile ? 'aspect-[4/5]' : 'aspect-[4/3]' // Slightly less tall for 3-column mobile layout
               }`}>
                 <Image
                   src={exercise.imageUrl}
                   alt={`${exercise.name} exercise demonstration`}
                   fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="object-cover object-center w-full h-full transition-transform duration-500 group-hover:scale-110"
+                  sizes="(max-width: 640px) 33vw, (max-width: 1024px) 50vw, 33vw"
                   priority={false}
                 />
                 
