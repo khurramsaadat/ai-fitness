@@ -161,6 +161,11 @@ const drawKeypoints = (keypoints: Array<{x: number; y: number; score: number}>, 
 };
 
 const drawSkeleton = (keypoints: Array<{x: number; y: number; score: number}>, ctx: CanvasRenderingContext2D) => {
+  // Mobile detection for thicker lines
+  const isMobile = typeof window !== 'undefined' && 
+    (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+     window.innerWidth <= 768);
+  
   const adjacentKeypoints = [
     { indices: [0, 1], type: 'head' }, { indices: [0, 2], type: 'head' }, 
     { indices: [1, 3], type: 'head' }, { indices: [2, 4], type: 'head' }, // head
@@ -178,7 +183,9 @@ const drawSkeleton = (keypoints: Array<{x: number; y: number; score: number}>, c
     const kp2 = keypoints[j];
     if (kp1 && kp2 && kp1.score > 0.3 && kp2.score > 0.3) {
       const alpha = clamp((kp1.score + kp2.score) / 2, 0.4, 1);
-      const lineWidth = clamp(alpha * 12, 6, 12);
+      // Increase line thickness on mobile
+      const baseWidth = isMobile ? 18 : 12; // 50% thicker on mobile
+      const lineWidth = clamp(alpha * baseWidth, isMobile ? 9 : 6, baseWidth);
       
       // Create linear gradient for the line
       const gradient = ctx.createLinearGradient(kp1.x, kp1.y, kp2.x, kp2.y);
@@ -209,7 +216,7 @@ const drawSkeleton = (keypoints: Array<{x: number; y: number; score: number}>, c
       ctx.beginPath();
       ctx.moveTo(kp1.x, kp1.y);
       ctx.lineTo(kp2.x, kp2.y);
-      ctx.lineWidth = lineWidth + 6;
+      ctx.lineWidth = lineWidth + (isMobile ? 9 : 6); // Thicker glow on mobile
       ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.3})`;
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -280,6 +287,10 @@ export default function Home() {
     { name: "Jumping Jacks", type: 'reps', target: 20, imageUrl: "https://images.pexels.com/photos/7031706/pexels-photo-7031706.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
     { name: "Lunges", type: 'reps', target: 12, imageUrl: "https://images.pexels.com/photos/3112004/pexels-photo-3112004.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
     { name: "Plank", type: 'time', target: 30, imageUrl: "https://images.pexels.com/photos/3076516/pexels-photo-3076516.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'landscape' },
+    // Additional bodyweight exercises
+    { name: "Mountain Climbers", type: 'reps', target: 20, imageUrl: "https://images.pexels.com/photos/4164856/pexels-photo-4164856.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+    { name: "Burpees", type: 'reps', target: 8, imageUrl: "https://images.pexels.com/photos/4164853/pexels-photo-4164853.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
+    { name: "High Knees", type: 'reps', target: 30, imageUrl: "https://images.pexels.com/photos/4164851/pexels-photo-4164851.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", orientation: 'portrait' },
   ];
 
   const poseConfidenceDeque = useRef<number[]>([]);
@@ -1337,19 +1348,23 @@ export default function Home() {
           {/* Mobile Stats Section - Below Camera on Mobile */}
           {isMobile && workoutState.isStarted && isFullscreen && (
             <div className="bg-background/95 backdrop-blur-sm border-t border-border p-4">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="text-center">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Reps</div>
-                  <div className="text-2xl font-bold text-primary">{workoutState.repCount}</div>
-                </div>
+              {/* Stats Grid - Reorganized: Time, Confidence, Form, Reps */}
+              <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Time</div>
-                  <div className="text-2xl font-bold text-primary">{Math.floor(workoutState.timeElapsed / 1000)}s</div>
+                  <div className="text-xl font-bold text-primary">{Math.floor(workoutState.timeElapsed / 1000)}s</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Confidence</div>
+                  <div className="text-xl font-bold text-primary">{Math.round(poseMetrics.poseConfidence)}%</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Form</div>
-                  <div className="text-2xl font-bold text-primary">{Math.round(poseMetrics.formScore)}%</div>
+                  <div className="text-xl font-bold text-primary">{Math.round(poseMetrics.formScore)}%</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Reps</div>
+                  <div className="text-xl font-bold text-primary">{workoutState.repCount}</div>
                 </div>
               </div>
               

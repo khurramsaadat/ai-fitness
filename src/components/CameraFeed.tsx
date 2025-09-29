@@ -26,6 +26,11 @@ const CameraFeed = ({
 }: CameraFeedProps) => {
   const clampedConfidence = Math.max(0, Math.min(100, Math.round(poseConfidence)));
   const clampedForm = Math.max(0, Math.min(100, Math.round(formScore)));
+  
+  // Mobile detection
+  const isMobile = typeof window !== 'undefined' && 
+    (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+     window.innerWidth <= 768);
 
   return (
     <div className="flex-grow rounded-2xl bg-card shadow-2xl overflow-hidden relative min-h-[480px] border border-border">
@@ -43,11 +48,19 @@ const CameraFeed = ({
       ></canvas>
 
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
-        <div className="bg-black/60 text-white px-4 py-2 rounded-lg shadow-lg border border-cyan-400/60 backdrop-blur-sm">
+        <div className={`text-white px-4 py-2 rounded-lg shadow-lg ${
+          isMobile 
+            ? 'bg-transparent' // Transparent on mobile
+            : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm' // Normal on desktop
+        }`}>
           <p className="text-xs uppercase tracking-widest text-cyan-200">Confidence</p>
           <p className="text-xl font-semibold text-cyan-100">{clampedConfidence}%</p>
         </div>
-        <div className="bg-black/60 text-white px-4 py-2 rounded-lg shadow-lg border border-cyan-400/60 backdrop-blur-sm flex items-center gap-2">
+        <div className={`text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 ${
+          isMobile 
+            ? 'bg-transparent' // Transparent on mobile
+            : 'bg-black/60 border border-cyan-400/60 backdrop-blur-sm' // Normal on desktop
+        }`}>
           <Target className="w-4 h-4 text-cyan-300" />
           <div>
             <p className="text-xs uppercase tracking-widest text-cyan-200">Form</p>
